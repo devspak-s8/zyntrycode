@@ -3,7 +3,7 @@
   "displayName": "Zyntry Code",
   "description": "Create, approve, run, and stream AI-planned engineering tasks; ingest your repo; and serve as the local execution runner.",
   "version": "0.2.0",
-  "publisher": "zyntry",
+  "publisher": "zyntrycode",
   "license": "MIT",
   "engines": {
     "vscode": "^1.85.0"
