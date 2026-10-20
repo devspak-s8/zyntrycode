@@ -1,23 +1,20 @@
 import { PageShell, PageSection, Note } from "../router";
-import { navigate } from "../router";
 
 export function GetStarted() {
   return (
     <PageShell kicker="Company" title="Get started">
-      <PageSection heading="1 · Install the extension">
+      <PageSection heading="1 · Install">
         <p>
-          Install <code style={{ fontFamily: "var(--font-mono)", color: "var(--accent)" }}>zyntry-code-0.2.0.vsix</code>{" "}
-          in VS Code, then run <strong style={{ color: "var(--text-primary)" }}>Zyntry: Set API Token</strong> and
-          paste your token. That is the only configuration step — the extension already
-          points at the production backend.
+          Install the Zyntry Code extension in VS Code. It arrives connected — there is
+          nothing to configure.
         </p>
       </PageSection>
 
       <PageSection heading="2 · Open your project">
         <p>
-          Open the repository you want to work on. Run{" "}
-          <strong style={{ color: "var(--text-primary)" }}>Zyntry: Ingest Repo Snapshot</strong> so planning happens
-          against your actual files.
+          Open the repository you want to work on and run{" "}
+          <strong style={{ color: "var(--text-primary)" }}>Zyntry: Ingest Repo Snapshot</strong>{" "}
+          so planning happens against your actual files.
         </p>
       </PageSection>
 
@@ -32,9 +29,9 @@ export function GetStarted() {
 
       <PageSection heading="4 · Let verification run in your repo">
         <p>
-          Run <strong style={{ color: "var(--text-primary)" }}>Zyntry: Create Workspace (local runner)</strong> and
-          attach it to the task, then re-run. Tests, lint, and typechecks now execute in
-          your real repository and their results close the verification loop.
+          Create a local-runner workspace and attach it to the task, then re-run. Tests,
+          lint, and typechecks now execute in your real repository and their results
+          close the verification loop.
         </p>
       </PageSection>
 
@@ -42,17 +39,13 @@ export function GetStarted() {
         <p>
           Review the diff and the evidence pack. Deliver when ready — commit runs
           immediately, push and pull request wait for your approval, and CI reports back
-          through the webhook.
+          automatically.
         </p>
       </PageSection>
 
       <Note label="Prefer a plan first?">
-        In the web app, choose <strong style={{ color: "var(--text-primary)" }}>Plan</strong> mode — the full
-        implementation plan opens for review before anything executes. See{" "}
-        <a href="#/how-it-works" onClick={() => navigate("how-it-works")} style={{ color: "var(--accent)" }}>
-          How it works
-        </a>{" "}
-        for the pipeline.
+        In the web companion, choose <strong style={{ color: "var(--text-primary)" }}>Plan</strong> mode — the full
+        implementation plan opens for review before anything executes.
       </Note>
     </PageShell>
   );

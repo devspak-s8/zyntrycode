@@ -29,8 +29,8 @@ export function EnvironmentsPage() {
           <li><strong style={{ color: "var(--text-primary)" }}>Workers AI:</strong> edge inference as an additional provider, alongside OpenAI and Anthropic keys stored as Cloudflare secrets.</li>
         </ul>
         <p>
-          Every endpoint except the health check requires a bearer token. The production
-          API lives at <code style={{ fontFamily: "var(--font-mono)", color: "var(--accent)" }}>code-api.zyntry.space</code>.
+          Every endpoint except the health check requires a bearer token — the public cannot
+          reach anything else.
         </p>
       </PageSection>
 

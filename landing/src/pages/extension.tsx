@@ -7,7 +7,7 @@ export function ExtensionPage() {
         <ol style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 8 }}>
           <li>Download <code style={{ fontFamily: "var(--font-mono)", color: "var(--accent)" }}>zyntry-code-0.2.0.vsix</code>.</li>
           <li>VS Code → Extensions → … → Install from VSIX.</li>
-          <li>Run <strong style={{ color: "var(--text-primary)" }}>Zyntry: Set API Token</strong> and paste your token.</li>
+          <li>Open a project and run <strong style={{ color: "var(--text-primary)" }}>Zyntry: Create Task</strong>.</li>
         </ol>
       </PageSection>
 
@@ -32,10 +32,10 @@ export function ExtensionPage() {
 
       <PageSection heading="Credentials">
         <p>
-          Your API token lives in <strong style={{ color: "var(--text-primary)" }}>VS Code SecretStorage</strong> —
-          encrypted by VS Code, never written to settings files or source. The legacy
-          plaintext setting is migrated into SecretStorage on activation and cleared.
-          The extension packages no provider API keys and no encryption keys.
+          The extension arrives connected — your access is managed automatically and
+          stored in <strong style={{ color: "var(--text-primary)" }}>VS Code SecretStorage</strong>, never written to
+          settings files or source. No provider API keys and no encryption keys are ever
+          packaged inside the extension.
         </p>
       </PageSection>
 

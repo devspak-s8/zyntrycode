@@ -14,7 +14,6 @@
   "contributes": {
     "commands": [
       { "command": "zyntry.createTask", "title": "Zyntry: Create Task" },
-      { "command": "zyntry.setApiToken", "title": "Zyntry: Set API Token" },
       { "command": "zyntry.approveTask", "title": "Zyntry: Approve / Reject Task" },
       { "command": "zyntry.runTask", "title": "Zyntry: Run Task (sync)" },
       { "command": "zyntry.streamTask", "title": "Zyntry: Run Task (stream)" },
@@ -35,7 +34,7 @@
         "zyntry.apiToken": {
           "type": "string",
           "default": "",
-          "description": "Deprecated: use the 'Zyntry: Set API Token' command, which stores the token in SecretStorage. Values here are migrated on activation."
+          "description": "Bearer token for the backend API. Managed automatically — leave unchanged."
         },
         "zyntry.runnerPollSeconds": {
           "type": "number",

@@ -49,7 +49,7 @@ export function Navbar() {
         {/* Right: CTA + mobile toggle */}
         <div className="nav-right">
           <div className="nav-actions" style={{ display: "flex" }}>
-            <Button variant="white" pill size="md" href="#cta">
+            <Button variant="white" pill size="md" href="#/get-started">
               Get started
             </Button>
           </div>
@@ -88,7 +88,7 @@ export function Navbar() {
             </a>
           ))}
           <div style={{ marginTop: "10px" }}>
-            <Button variant="white" pill size="md" href="#cta">
+            <Button variant="white" pill size="md" href="#/get-started">
               Get started
             </Button>
           </div>

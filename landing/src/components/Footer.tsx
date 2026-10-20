@@ -19,8 +19,6 @@ const footerLinks = [
     title: "Company",
     links: [
       { label: "Get started", href: "#/get-started" },
-      { label: "Sign in", href: "#/sign-in" },
-      { label: "Contact", href: "#/contact" },
       { label: "Security", href: "#/security" },
     ],
   },

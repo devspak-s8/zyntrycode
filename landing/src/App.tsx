@@ -13,8 +13,6 @@ import { Docs } from "./pages/docs";
 import { Routing } from "./pages/routing";
 import { ExtensionPage } from "./pages/extension";
 import { GetStarted } from "./pages/get-started";
-import { SignIn } from "./pages/sign-in";
-import { Contact } from "./pages/contact";
 import { SecurityPage } from "./pages/security";
 
 export default function App() {
@@ -27,8 +25,6 @@ export default function App() {
   if (route === "routing") return <Routing />;
   if (route === "extension") return <ExtensionPage />;
   if (route === "get-started") return <GetStarted />;
-  if (route === "sign-in") return <SignIn />;
-  if (route === "contact") return <Contact />;
   if (route === "security") return <SecurityPage />;
 
   return (

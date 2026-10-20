@@ -2,14 +2,14 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Navbar } from "./components/Navbar";
 import { Footer } from "./components/Footer";
 
-export type Route = "" | "how-it-works" | "features" | "environments" | "docs" | "routing" | "extension" | "get-started" | "sign-in" | "contact" | "security";
+export type Route = "" | "how-it-works" | "features" | "environments" | "docs" | "routing" | "extension" | "get-started" | "security";
 
 export function normalizeHash(): Route {
   const raw = window.location.hash.replace(/^#\/?/, "");
   const slug = raw.split("?")[0].toLowerCase();
   const known: Route[] = [
     "how-it-works", "features", "environments", "docs", "routing",
-    "extension", "get-started", "sign-in", "contact", "security",
+    "extension", "get-started", "security",
   ];
   return known.includes(slug as Route) ? (slug as Route) : "";
 }
