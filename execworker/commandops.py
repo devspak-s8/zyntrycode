@@ -38,7 +38,9 @@ def _rlimit_preexec(cpu_limit: float | None, mem_limit_mb: int | None):
             pass
         import resource  # POSIX-only; never imported on Windows
         if cpu_limit:
-            resource.setrlimit(resource.RLIMIT_CPU, (cpu_limit, cpu_limit + 1))
+            # RLIMIT values must be integers — a float here makes setrlimit
+            # raise inside the child, which then exits(1) before running.
+            resource.setrlimit(resource.RLIMIT_CPU, (int(cpu_limit), int(cpu_limit) + 1))
         if mem_limit_mb:
             limit = int(mem_limit_mb) * 1024 * 1024
             resource.setrlimit(resource.RLIMIT_AS, (limit, limit))

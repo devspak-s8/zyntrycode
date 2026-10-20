@@ -8,6 +8,7 @@ the last read position, so the agent can poll interactively.
 """
 
 import asyncio
+import atexit
 import os
 import signal
 import time
@@ -17,6 +18,27 @@ from execworker.security import parse_command, safe_child_env
 
 _SESSIONS: dict[str, dict] = {}
 _MAX_BUFFER = 1_000_000
+
+
+def _cleanup_all_sessions() -> None:
+    """Kill every live session at interpreter exit so a leaked session can
+    never block process shutdown (the PTY reader thread would otherwise keep
+    the executor alive)."""
+    for session in list(_SESSIONS.values()):
+        try:
+            _kill_proc(session["proc"])
+        except Exception:  # noqa: BLE001
+            pass
+        fd = session.get("fd")
+        if fd is not None:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+    _SESSIONS.clear()
+
+
+atexit.register(_cleanup_all_sessions)
 
 
 async def _reader_loop(session: dict) -> None:

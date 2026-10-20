@@ -239,8 +239,11 @@ def test_workspace_lifecycle_and_bridge(runtime):
             attempt_id="attempt-1", command_key="test", command="pytest",
             verify_as="tests", dangerous=False))
 
-    # Runner claims it.
-    r = client.get(f"/workspaces/{ws_id}/tool-requests/next", headers={"x-runner-id": "w1"})
+    # Runner claims it (runner credential required when RUNNER_TOKEN is set).
+    runner_headers = {"x-runner-id": "w1"}
+    if runtime.get("RUNNER_TOKEN"):
+        runner_headers["x-runner-token"] = runtime.get("RUNNER_TOKEN")
+    r = client.get(f"/workspaces/{ws_id}/tool-requests/next", headers=runner_headers)
     assert r.status_code == 200 and r.json()["tool_request"]["status"] == "dispatched"
 
     # Runner posts a failing result -> becomes a verification report.
@@ -279,7 +282,9 @@ def test_dangerous_command_requires_approval(runtime):
                     json={"approved": True})
     assert r.status_code == 200 and r.json()["status"] == "queued"
 
-    r = client.get(f"/workspaces/{ws_id}/tool-requests/next")
+    r = client.get(f"/workspaces/{ws_id}/tool-requests/next",
+                   headers={"x-runner-token": runtime.get("RUNNER_TOKEN")}
+                   if runtime.get("RUNNER_TOKEN") else None)
     assert r.json()["tool_request"]["id"] == req["id"]
 
 
