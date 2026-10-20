@@ -42,6 +42,22 @@ def _kill_proc(proc) -> None:
         pass
 
 
+async def _start_pipe_session(session_id: str, argv: list[str], cwd: str,
+                              merged_env: dict, owner: str | None) -> dict:
+    """Pipe-backed session (Windows, or POSIX fallback when the PTY child
+    exits immediately)."""
+    proc = await asyncio.create_subprocess_exec(
+        *argv, cwd=cwd, env=merged_env,
+        stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT)
+    session = {"id": session_id, "owner": owner, "proc": proc, "fd": None,
+               "buffer": "", "exited": False, "pty": False, "read_pos": 0,
+               "created_at": time.time()}
+    _SESSIONS[session_id] = session
+    asyncio.create_task(_pipe_reader(session))
+    return {"session_id": session_id, "pid": proc.pid, "pty": False}
+
+
 async def start_session(*, cwd: str, command: str | None = None,
                         cols: int = 120, rows: int = 40, env: dict | None = None,
                         owner: str | None = None) -> dict:
@@ -51,17 +67,7 @@ async def start_session(*, cwd: str, command: str | None = None,
 
     argv = parse_command(command) if command else (["cmd"] if os.name == "nt" else ["bash"])
     if os.name == "nt":
-        proc = await asyncio.create_subprocess_exec(
-            *argv, cwd=cwd, env=merged_env,
-            stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT)
-        reader_fd = None
-        session = {"id": session_id, "owner": owner, "proc": proc, "fd": None,
-                   "buffer": "", "exited": False, "pty": False, "read_pos": 0,
-                   "created_at": time.time()}
-        _SESSIONS[session_id] = session
-        asyncio.create_task(_pipe_reader(session))
-        return {"session_id": session_id, "pid": proc.pid, "pty": False}
+        return await _start_pipe_session(session_id, argv, cwd, merged_env, owner)
 
     import pty
 
@@ -81,6 +87,18 @@ async def start_session(*, cwd: str, command: str | None = None,
         fcntl.ioctl(master, 0x5410, struct.pack("HHHH", rows, cols, 0, 0))  # TIOCSWINSZ
     except (ImportError, OSError):
         pass
+
+    # Some CI runners cannot give the child a working PTY (it exits instantly).
+    # Fall back to pipes so sessions still work everywhere.
+    await asyncio.sleep(0.25)
+    if proc.returncode is not None:
+        _SESSIONS.pop(session_id, None)
+        try:
+            os.close(master)
+        except OSError:
+            pass
+        return await _start_pipe_session(session_id, argv, cwd, merged_env, owner)
+
     return {"session_id": session_id, "pid": proc.pid, "pty": True}
 
 

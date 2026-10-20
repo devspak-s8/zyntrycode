@@ -20,5 +20,13 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
+      # Test-only values. ALLOW_INSECURE_LOCAL only disables auth when the
+      # runtime has no Workers env (tests), so production is unaffected.
+      # SECRET_ENCRYPTION_KEY here is a throwaway TEST key, never the
+      # production secret.
       - name: Run the test suite
         run: uv run pytest -q --timeout 90
+        env:
+          ALLOW_INSECURE_LOCAL: "true"
+          SECRET_ENCRYPTION_KEY: "GTa-rDhZEDfjibHljnACYQ0Ubc8lslIGEkUSbOEG8TY="
+          RUNNER_TOKEN: "ci-test-runner-token"

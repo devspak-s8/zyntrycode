@@ -115,10 +115,15 @@ async def run_command(cwd: str, cmd: str, env: dict | None = None,
         }
     except FileNotFoundError:
         return {"stdout": "", "stderr": f"command not found: {cmd}",
-                "exit_code": 127, "duration_ms": int((time.monotonic() - started) * 1000)}
+                "exit_code": 127, "duration_ms": int((time.monotonic() - started) * 1000),
+                "timed_out": False, "killed_by_signal": False,
+                "rlimits": _rlimits_info(enforced, cpu_limit, mem_limit_mb),
+                "error": f"command not found: {cmd}"}
     except Exception as exc:  # noqa: BLE001
         return {"stdout": "", "stderr": str(exc), "exit_code": -1,
                 "duration_ms": int((time.monotonic() - started) * 1000),
+                "timed_out": False, "killed_by_signal": False,
+                "rlimits": _rlimits_info(enforced, cpu_limit, mem_limit_mb),
                 "error": str(exc)}
 
 
