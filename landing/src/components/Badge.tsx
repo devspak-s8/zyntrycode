@@ -16,7 +16,7 @@ export function Badge({ children, variant = "default", dot = false }: BadgeProps
     accent: {
       background: "var(--accent-glow)",
       color: "var(--accent)",
-      border: "1px solid rgba(103,232,249,0.25)",
+      border: "1px solid rgba(147,197,253,0.25)",
     },
     success: {
       background: "var(--success-dim)",
@@ -26,17 +26,17 @@ export function Badge({ children, variant = "default", dot = false }: BadgeProps
     warning: {
       background: "var(--warning-dim)",
       color: "var(--warning)",
-      border: "1px solid rgba(251,191,36,0.2)",
+      border: "1px solid rgba(244,199,106,0.2)",
     },
     error: {
       background: "var(--error-dim)",
       color: "var(--error)",
-      border: "1px solid rgba(248,113,113,0.2)",
+      border: "1px solid rgba(255,125,125,0.2)",
     },
     info: {
       background: "var(--info-dim)",
       color: "var(--info)",
-      border: "1px solid rgba(96,165,250,0.2)",
+      border: "1px solid rgba(130,185,255,0.2)",
     },
   };
 
