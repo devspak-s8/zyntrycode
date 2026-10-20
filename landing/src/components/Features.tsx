@@ -57,13 +57,26 @@ export function Features() {
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-          gap: "16px",
+          gap: "1px",
+          background: "var(--border-subtle)",
+          borderRadius: "var(--radius-lg)",
+          overflow: "hidden",
+          border: "1px solid var(--border-subtle)",
         }}
       >
         {features.map((f, i) => {
           const Icon = f.icon;
           return (
-            <div key={i} className="ws-card" style={{ padding: "30px 28px" }}>
+            <div
+              key={i}
+              style={{
+                padding: "32px 28px",
+                background: "var(--bg-surface)",
+                transition: "background var(--transition)",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-elevated)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "var(--bg-surface)")}
+            >
               <div
                 style={{
                   width: "40px",

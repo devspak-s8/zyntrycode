@@ -1,13 +1,10 @@
 import { type ButtonHTMLAttributes, type ReactNode } from "react";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "secondary" | "ghost" | "white";
+  variant?: "primary" | "secondary" | "ghost";
   size?: "md" | "lg";
   icon?: ReactNode;
   href?: string;
-  target?: string;
-  rel?: string;
-  pill?: boolean;
 }
 
 export function Button({
@@ -16,7 +13,6 @@ export function Button({
   icon,
   children,
   href,
-  pill = false,
   ...props
 }: ButtonProps) {
   const base: React.CSSProperties = {
@@ -26,7 +22,7 @@ export function Button({
     gap: "8px",
     fontFamily: "var(--font-sans)",
     fontWeight: 500,
-    borderRadius: pill ? "999px" : "var(--radius-md)",
+    borderRadius: "var(--radius-md)",
     transition: "all var(--transition)",
     whiteSpace: "nowrap",
     cursor: "pointer",
@@ -40,8 +36,8 @@ export function Button({
   const variants: Record<string, React.CSSProperties> = {
     primary: {
       background: "var(--accent)",
-      color: "#0D1217",
-      boxShadow: "0 0 0 1px rgba(147,197,253,0.3), 0 8px 24px -8px rgba(147,197,253,0.4)",
+      color: "#0A0E12",
+      boxShadow: "0 0 0 1px rgba(103,232,249,0.3), 0 8px 24px -8px rgba(103,232,249,0.4)",
     },
     secondary: {
       background: "var(--bg-elevated)",
@@ -52,18 +48,12 @@ export function Button({
       background: "transparent",
       color: "var(--text-secondary)",
     },
-    white: {
-      background: "#FFFFFF",
-      color: "#0D1217",
-      border: "1px solid rgba(255,255,255,0.3)",
-      boxShadow: "0 4px 14px -2px rgba(0,0,0,0.45)",
-    },
   };
 
   const hoverStyles: Record<string, React.CSSProperties> = {
     primary: {
-      background: "#A9D2FD",
-      boxShadow: "0 0 0 1px rgba(147,197,253,0.5), 0 12px 32px -8px rgba(147,197,253,0.55)",
+      background: "#7DEEFB",
+      boxShadow: "0 0 0 1px rgba(103,232,249,0.5), 0 12px 32px -8px rgba(103,232,249,0.55)",
     },
     secondary: {
       background: "var(--bg-elevated-hover)",
@@ -71,10 +61,6 @@ export function Button({
     },
     ghost: {
       color: "var(--text-primary)",
-    },
-    white: {
-      background: "#E4E4E7",
-      border: "1px solid rgba(255,255,255,0.4)",
     },
   };
 
@@ -92,7 +78,6 @@ export function Button({
         style={{ ...base, ...variants[variant] }}
         onMouseEnter={(e) => Object.assign(e.currentTarget.style, hoverStyles[variant])}
         onMouseLeave={(e) => Object.assign(e.currentTarget.style, { ...variants[variant] })}
-        {...(props as React.AnchorHTMLAttributes<HTMLAnchorElement>)}
       >
         {content}
       </a>

@@ -19,7 +19,7 @@ export function CTA() {
           transform: "translate(-50%, -50%)",
           width: "600px",
           height: "400px",
-          background: "radial-gradient(ellipse at center, rgba(147,197,253,0.08) 0%, transparent 60%)",
+          background: "radial-gradient(ellipse at center, rgba(103,232,249,0.08) 0%, transparent 60%)",
           pointerEvents: "none",
         }}
       />
@@ -67,11 +67,11 @@ export function CTA() {
             flexWrap: "wrap",
           }}
         >
-          <Button variant="primary" size="lg" href="https://github.com/devspak-s8/Zyntry-Code" target="_blank" rel="noreferrer noopener">
-            Start on GitHub
+          <Button variant="primary" size="lg">
+            Start orchestrating
           </Button>
-          <Button variant="secondary" size="lg" href="#walkthrough">
-            See how it works
+          <Button variant="secondary" size="lg" href="#demo">
+            View the demo
           </Button>
         </div>
 
