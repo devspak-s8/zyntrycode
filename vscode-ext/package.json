@@ -2,7 +2,7 @@
   "name": "zyntry-code",
   "displayName": "Zyntry Code",
   "description": "Create, approve, run, and stream AI-planned engineering tasks; ingest your repo; and serve as the local execution runner.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "zyntry",
   "license": "MIT",
   "engines": {
@@ -14,6 +14,7 @@
   "contributes": {
     "commands": [
       { "command": "zyntry.createTask", "title": "Zyntry: Create Task" },
+      { "command": "zyntry.setApiToken", "title": "Zyntry: Set API Token" },
       { "command": "zyntry.approveTask", "title": "Zyntry: Approve / Reject Task" },
       { "command": "zyntry.runTask", "title": "Zyntry: Run Task (sync)" },
       { "command": "zyntry.streamTask", "title": "Zyntry: Run Task (stream)" },
@@ -28,13 +29,13 @@
       "properties": {
         "zyntry.backendUrl": {
           "type": "string",
-          "default": "https://zyntry-code.devspark015.workers.dev",
+          "default": "https://code-api.zyntry.space",
           "description": "URL of the Zyntry Code backend (Cloudflare Worker or local dev server)."
         },
         "zyntry.apiToken": {
           "type": "string",
           "default": "",
-          "description": "Bearer token for the backend's API_TOKEN (leave empty when auth is disabled)."
+          "description": "Deprecated: use the 'Zyntry: Set API Token' command, which stores the token in SecretStorage. Values here are migrated on activation."
         },
         "zyntry.runnerPollSeconds": {
           "type": "number",

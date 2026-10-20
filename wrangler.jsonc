@@ -40,7 +40,7 @@
 		"ANTHROPIC_BASE_URL": "https://api.anthropic.com",
 		"MAX_ATTEMPTS_PER_STAGE": "2",
 		"DEFAULT_BUDGET_USD": "5.0",
-		"ALLOWED_ORIGINS": "https://your-frontend.example.com",
+		"ALLOWED_ORIGINS": "*",
 		"RATE_LIMIT_PER_MINUTE": "120"
 	},
 

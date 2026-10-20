@@ -21,7 +21,7 @@ export interface BackendConfig {
  * VITE_BACKEND_URL in a .env file, or by storing 'zyntry.backendUrl' in
  * localStorage (the badge UI does this).
  */
-const DEFAULT_BACKEND_URL = 'https://zyntry-code.devspark015.workers.dev';
+const DEFAULT_BACKEND_URL = 'https://code-api.zyntry.space';
 
 function envBackendUrl(): string {
   try {

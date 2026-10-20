@@ -36,7 +36,7 @@ function config() {
 }
 
 function baseUrl() {
-  const value = String(config().get("backendUrl", "http://localhost:8787")).replace(/\/+$/, "");
+  const value = String(config().get("backendUrl", "https://code-api.zyntry.space")).replace(/\/+$/, "");
   const parsed = new URL(value);
   const local = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "::1";
   if (parsed.protocol !== "https:" && !(local && parsed.protocol === "http:")) {
@@ -229,6 +229,24 @@ async function streamTask() {
         }
       }
     }
+  }
+}
+
+async function setApiToken() {
+  const token = await vscode.window.showInputBox({
+    prompt: "Zyntry Code API token (stored in VS Code SecretStorage, never in settings)",
+    password: true,
+    ignoreFocusOut: true,
+  });
+  if (token === undefined) return;
+  if (extensionContext?.secrets) {
+    await extensionContext.secrets.store("zyntry.apiToken", token.trim());
+    // Clear any legacy plaintext setting so secrets are the single source.
+    await config().update("apiToken", undefined, vscode.ConfigurationTarget.Global);
+    await config().update("apiToken", undefined, vscode.ConfigurationTarget.Workspace);
+    vscode.window.showInformationMessage("Zyntry: API token stored securely.");
+  } else {
+    vscode.window.showErrorMessage("Zyntry: SecretStorage is unavailable in this context.");
   }
 }
 
@@ -703,6 +721,7 @@ function activate(context) {
   const reg = (cmd, fn) => vscode.commands.registerCommand(cmd, fn);
   context.subscriptions.push(
     reg("zyntry.createTask", createTask),
+    reg("zyntry.setApiToken", setApiToken),
     reg("zyntry.approveTask", approveTask),
     reg("zyntry.runTask", runTask),
     reg("zyntry.streamTask", streamTask),

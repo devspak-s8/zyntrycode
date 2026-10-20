@@ -40,6 +40,7 @@ import { ConstitutionView } from './ConstitutionView';
 import { WorkspaceSetupLoader } from './WorkspaceSetupLoader';
 import { RepoIngestButton } from './RepoIngestButton';
 import { WorkspaceDialog } from './WorkspaceDialog';
+import { BackendBadge } from './BackendBadge';
 import { CommandPalette, PaletteAction, PALETTE_NAV_ICONS, MODE_ICONS, PALETTE_EXTRAS } from './CommandPalette';
 import { DeliverPanel } from './DeliverPanel';
 import { RunnerPanel } from './RunnerPanel';
@@ -1565,6 +1566,7 @@ export const AppShell: React.FC = () => {
         actions={paletteActions}
         onClose={() => setPaletteOpen(false)}
       />
+      <BackendBadge />
     </motion.div>
   );
 };
