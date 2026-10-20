@@ -18,11 +18,14 @@ from runtime import Runtime, set_local_runtime  # noqa: E402
 
 
 def pytest_configure(config) -> None:
-    """Point pytest's temp dir at a path this machine's cloud filter allows."""
-    basetemp = os.environ.get("PYTEST_BASETEMP")
-    if not basetemp:
-        base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-        basetemp = os.path.join(base, "Temp", "opencode", "pytest-tmp")
+    """Local Windows workaround: keep pytest's temp dir outside cloud-filtered
+    folders (OneDrive). On CI/Linux leave pytest's default temp handling alone —
+    the Windows-only path previously broke `tmp_path` on the runner."""
+    if os.environ.get("PYTEST_BASETEMP") or os.name != "nt":
+        return
+    local = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+    basetemp = os.path.join(local, "Temp", "opencode", "pytest-tmp")
+    os.makedirs(basetemp, exist_ok=True)
     config.option.basetemp = basetemp
     # Tests deliberately run in explicit local-insecure mode. Production and
     # normal local ASGI runs fail closed unless this flag is set by the user.
