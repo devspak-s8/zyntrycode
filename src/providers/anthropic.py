@@ -52,7 +52,7 @@ class AnthropicProvider(Provider):
                     resp = client.post(f"{base}/v1/messages", json=payload, headers=headers)
                 if resp.status_code >= 400:
                     return LLMResult(model=model, provider=self.name,
-                                     error=f"provider returned {resp.status_code}: {resp.text[:500]}")
+                                     error=f"provider returned {resp.status_code}")
                 data = resp.json()
                 content = data.get("content") or []
                 text = "".join(b.get("text", "") for b in content if b.get("type") == "text")
@@ -111,7 +111,7 @@ class AnthropicProvider(Provider):
                             resp.read()
                             return LLMResult(
                                 text="".join(parts), model=model, provider=self.name,
-                                error=f"provider returned {resp.status_code}: {resp.text[:500]}",
+                                error=f"provider returned {resp.status_code}",
                                 raw=events,
                             )
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { X, Server, Loader2 } from 'lucide-react';
-import { api, BackendWorkspace } from '../api/client';
+import { api, BackendWorkspace, friendlyError } from '../api/client';
 
 interface WorkspaceDialogProps {
   isOpen: boolean;
@@ -30,6 +30,10 @@ export const WorkspaceDialog: React.FC<WorkspaceDialogProps> = ({
   const [commands, setCommands] = useState<Record<string, { cmd: string; dangerous?: boolean }>>({
     test: { cmd: 'pytest' },
   });
+  // Repo rule pack: per-repo custom verification.
+  const [ruleRegexes, setRuleRegexes] = useState('');
+  const [ruleCommands, setRuleCommands] = useState('');
+  const [ruleConstitution, setRuleConstitution] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,10 +60,26 @@ export const WorkspaceDialog: React.FC<WorkspaceDialogProps> = ({
         commands,
         timeout_seconds: timeoutSeconds,
       });
+      // Repo rule pack: regex / command / constitution rules stored with the
+      // workspace and enforced on every subsequent execution.
+      const rules = [
+        ...ruleRegexes.split('\n').map((line, i) => ({
+          name: `regex-${i + 1}`, kind: 'regex' as const, spec: line.trim(), enabled: true,
+        })),
+        ...ruleCommands.split('\n').map((line, i) => ({
+          name: `command-${i + 1}`, kind: 'command' as const, spec: line.trim(), enabled: true,
+        })),
+        ...ruleConstitution.split('\n').map((line, i) => ({
+          name: `constitution-${i + 1}`, kind: 'constitution' as const, spec: line.trim(), enabled: true,
+        })),
+      ].filter((r) => r.spec.length > 0);
+      if (rules.length > 0) {
+        await api.setRepoRules(ws.id, rules).catch(() => undefined);
+      }
       onCreated(ws);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(friendlyError(err));
     } finally {
       setBusy(false);
     }
@@ -184,6 +204,49 @@ export const WorkspaceDialog: React.FC<WorkspaceDialogProps> = ({
               max={7200}
               className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-[#F2F6F4] outline-none focus:border-[#82B9FF]"
             />
+          </div>
+
+          {/* Repo rule pack */}
+          <div className="space-y-3 p-3 rounded-2xl border border-white/10 bg-black/20">
+            <div className="text-[11px] font-mono text-[#93C5FD] uppercase tracking-wider">
+              Repo rule pack (custom verification)
+            </div>
+            <div>
+              <label className="text-[10px] font-mono text-[#6F7B77] block mb-1">
+                Regex rules — one pattern per line; any match fails the stage
+              </label>
+              <textarea
+                value={ruleRegexes}
+                onChange={(e) => setRuleRegexes(e.target.value)}
+                rows={2}
+                placeholder={'console\\.log\nTODO\\(.*\\)'}
+                className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-[#F2F6F4] outline-none focus:border-[#82B9FF] resize-none"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-mono text-[#6F7B77] block mb-1">
+                Command rules — one per line, run as extra verification (approval-gated)
+              </label>
+              <textarea
+                value={ruleCommands}
+                onChange={(e) => setRuleCommands(e.target.value)}
+                rows={2}
+                placeholder={'npm run typecheck\nruff check .'}
+                className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-[#F2F6F4] outline-none focus:border-[#82B9FF] resize-none"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-mono text-[#6F7B77] block mb-1">
+                Constitution rules — injected into every stage prompt
+              </label>
+              <textarea
+                value={ruleConstitution}
+                onChange={(e) => setRuleConstitution(e.target.value)}
+                rows={2}
+                placeholder={'Never commit API keys.'}
+                className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-[#F2F6F4] outline-none focus:border-[#82B9FF] resize-none"
+              />
+            </div>
           </div>
         </div>
 

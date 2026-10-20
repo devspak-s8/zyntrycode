@@ -32,14 +32,15 @@
 	// Non-secret configuration. API keys are SECRETS: do NOT put them here.
 	//   local dev:  put keys in .dev.vars
 	//   production: uv run pywrangler secret put OPENAI_API_KEY
-	// API_TOKEN is optional: set it (as a secret) to require a Bearer token on all routes.
+	// API_TOKEN is required in production. Also set SECRET_ENCRYPTION_KEY,
+	// RUNNER_TOKEN, and CI_WEBHOOK_SECRET as secrets.
 	"vars": {
 		"PROVIDER_ORDER": "openai,anthropic,workers_ai",
 		"OPENAI_BASE_URL": "https://api.openai.com/v1",
 		"ANTHROPIC_BASE_URL": "https://api.anthropic.com",
 		"MAX_ATTEMPTS_PER_STAGE": "2",
 		"DEFAULT_BUDGET_USD": "5.0",
-		"ALLOWED_ORIGINS": "*",
+		"ALLOWED_ORIGINS": "https://your-frontend.example.com",
 		"RATE_LIMIT_PER_MINUTE": "120"
 	},
 

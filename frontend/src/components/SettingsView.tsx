@@ -32,7 +32,6 @@ import {
   FileCode
 } from 'lucide-react';
 import { CustomSelect, SelectOption } from './CustomSelect';
-import { api, getBackendConfig } from '../api/client';
 
 export type SettingsSectionId = 
   | 'workspace'
@@ -75,23 +74,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [excludedFolders, setExcludedFolders] = useState(['node_modules/**', '.git/**', 'dist/**', 'build/**']);
   const [isReindexing, setIsReindexing] = useState(false);
 
-  // Backend connection (live — read from the same config the API client uses)
-  const [backendUrl] = useState(getBackendConfig().backendUrl);
-  const [backendStatus, setBackendStatus] = useState<'checking' | 'connected' | 'unreachable'>('checking');
-  const [backendDetail, setBackendDetail] = useState<string>('');
-  const checkBackend = async () => {
-    setBackendStatus('checking');
-    try {
-      const h = await api.health();
-      setBackendStatus('connected');
-      setBackendDetail(
-        `ok · providers: ${(h.providers?.configured ?? []).join(', ') || 'none'}`
-      );
-    } catch (err) {
-      setBackendStatus('unreachable');
-      setBackendDetail(err instanceof Error ? err.message : String(err));
-    }
-  };
+  // Backend connection state removed: the backend URL/token and connection
+  // testing are private to the operator — never displayed in the UI.
 
   // 2. Execution State
   const [requireApprovalForFiles, setRequireApprovalForFiles] = useState(true);
@@ -160,8 +144,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [highContrastBorders, setHighContrastBorders] = useState(false);
 
   // 9. Account & Diagnostics
-  const [currentUser] = useState('apatirasulayman@gmail.com');
-  const [connectedRuntime] = useState('local-daemon @ 127.0.0.1:4820');
+  const [currentUser] = useState('Local Developer');
+  const [connectedRuntime] = useState('local-daemon');
   const [runtimeStatus] = useState('nominal');
 
   // Custom Dropdown Option Configs
@@ -285,10 +269,43 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   ];
 
+  // Persist notification preferences (read by the app's notify()).
   useEffect(() => {
-    checkBackend();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    localStorage.setItem(
+      'zyntry.notify',
+      JSON.stringify({
+        notifyTaskCompleted,
+        notifyVerificationFailed,
+        notifyApprovalRequired,
+        notifyRuntimeBlocked,
+        notifyProviderFallback,
+        notifyBudgetWarning,
+      })
+    );
+  }, [
+    notifyTaskCompleted,
+    notifyVerificationFailed,
+    notifyApprovalRequired,
+    notifyRuntimeBlocked,
+    notifyProviderFallback,
+    notifyBudgetWarning,
+  ]);
+
+  // Apply + persist theme immediately (live preview as you switch).
+  useEffect(() => {
+    const root = document.documentElement;
+    root.setAttribute('data-zyntry-theme', themeMode);
+    if (themeMode === 'light') {
+      root.style.filter = 'invert(1) hue-rotate(180deg)';
+    } else if (themeMode === 'oled') {
+      root.style.filter = 'brightness(0.72) contrast(1.08)';
+    } else if (themeMode === 'midnight') {
+      root.style.filter = 'saturate(1.25) hue-rotate(12deg)';
+    } else {
+      root.style.filter = '';
+    }
+    localStorage.setItem('zyntry.theme', themeMode);
+  }, [themeMode]);
 
   const triggerToast = (msg: string) => {
     setSaveToast(msg);
@@ -348,7 +365,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     : SECTIONS;
 
   return (
-    <div className="w-full px-6 sm:px-10 md:px-16 lg:px-20 xl:px-24 py-6 sm:py-8 space-y-6 pb-24 text-[#F3F4F6]">
+    <div className="w-full px-4 sm:px-10 md:px-16 lg:px-20 xl:px-24 py-6 sm:py-8 space-y-6 pb-24 text-[#F3F4F6]">
       
       {/* Toast Notification */}
       <AnimatePresence>
@@ -395,48 +412,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </div>
 
-      {/* Global Save Bar */}
-      <div className="flex items-center justify-between gap-3 p-4 rounded-[22px] bg-[#121820]/90 border border-[#55E6A5]/25 shadow-md backdrop-blur-md">
-        <div className="flex items-center gap-2.5 text-xs text-[#9CA3AF]">
-          <Info size={14} className="text-[#93C5FD] shrink-0" />
-          <span>
-            Budget &amp; branch apply to new tasks. Changes you make here are live,
-            but press <span className="text-white font-medium">Save</span> to persist
-            them across reloads.
-          </span>
-        </div>
-        <motion.button
-          type="button"
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
-          onClick={() => {
-            onSave?.();
-            triggerToast('Settings saved — budget & branch persisted');
-          }}
-          className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[#173D30] to-[#1F4E3E] hover:from-[#1F4E3E] hover:to-[#26624E] text-[#55E6A5] border border-[#2D9E70] rounded-full text-xs font-semibold transition-all cursor-pointer shadow-lg shrink-0"
-        >
-          <Check size={14} />
-          <span>Save Settings</span>
-        </motion.button>
-      </div>
-
-      {/* Console Authority Notice Banner */}
-      <div className="p-4 rounded-[22px] bg-[#121820]/90 border border-white/10 flex items-start gap-3 shadow-md backdrop-blur-md">
-        <Info size={16} className="text-[#93C5FD] shrink-0 mt-0.5" />
-        <div className="text-xs leading-relaxed text-[#9CA3AF]">
-          <span className="font-semibold text-white">Security & Governance Architecture: </span>
-          Raw API keys, provider credentials, organizational IAM roles, and project billing are securely managed in the{' '}
-          <span className="text-[#93C5FD] font-medium underline cursor-pointer hover:text-white">Rivet Console</span>. 
-          Local settings control your IDE experience, while the connected runtime acts as the authoritative security sandbox.
-        </div>
-      </div>
-
-      {/* Main Settings Layout: Bubbly Section Pills + Section Card Container */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      {/* Main Settings Layout: section tabs stay on the LEFT at every screen size.
+         On small screens they shrink (icons + tiny labels) instead of stacking
+         above the content. */}
+      <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] sm:grid-cols-[10.5rem_minmax(0,1fr)] lg:grid-cols-12 gap-3 sm:gap-6 items-start">
         
         {/* Left Side Navigation Pills (Sticky on desktop) */}
-        <div className="lg:col-span-4 lg:sticky lg:top-4 space-y-1.5 bg-[#10151C]/80 border border-white/8 rounded-[26px] p-2.5 shadow-xl backdrop-blur-xl">
-          <div className="px-3 py-1.5 text-[10px] font-mono text-[#9CA3AF] uppercase tracking-wider">
+        <div className="col-span-1 lg:col-span-4 md:sticky md:top-4 space-y-0.5 sm:space-y-1.5 bg-[#10151C]/80 border border-white/8 rounded-[20px] sm:rounded-[26px] p-1.5 sm:p-2.5 shadow-xl backdrop-blur-xl">
+          <div className="hidden sm:block px-3 py-1.5 text-[10px] font-mono text-[#9CA3AF] uppercase tracking-wider">
             Configuration Sections
           </div>
           {filteredSections.map((sec) => {
@@ -446,31 +429,32 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 key={sec.id}
                 type="button"
                 onClick={() => setActiveSection(sec.id)}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-left transition-all cursor-pointer group ${
+                title={`${sec.label} — ${sec.desc}`}
+                className={`w-full flex items-center justify-between px-2 sm:px-3.5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-left transition-all cursor-pointer group ${
                   isActive
                     ? 'bg-white/10 text-white font-medium border border-white/15 shadow-sm'
                     : 'text-[#9CA3AF] hover:text-[#F3F4F6] hover:bg-white/5 border border-transparent'
                 }`}
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className={`p-1.5 rounded-xl transition-transform group-hover:scale-105 ${
+                <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+                  <span className={`p-1 sm:p-1.5 rounded-lg sm:rounded-xl transition-transform group-hover:scale-105 ${
                     isActive ? 'text-[#93C5FD] bg-white/10' : 'text-[#6B7280]'
                   }`}>
                     {sec.icon}
                   </span>
                   <div className="min-w-0">
-                    <div className="text-xs font-semibold truncate">{sec.label}</div>
-                    <div className="text-[10px] text-[#6B7280] truncate">{sec.desc}</div>
+                    <div className="text-[10px] sm:text-xs font-semibold truncate">{sec.label}</div>
+                    <div className="hidden sm:block text-[10px] text-[#6B7280] truncate">{sec.desc}</div>
                   </div>
                 </div>
-                <ChevronRight size={13} className={`shrink-0 transition-transform ${isActive ? 'text-[#93C5FD] translate-x-0.5' : 'text-transparent'}`} />
+                <ChevronRight size={13} className={`hidden sm:block shrink-0 transition-transform ${isActive ? 'text-[#93C5FD] translate-x-0.5' : 'text-transparent'}`} />
               </button>
             );
           })}
         </div>
 
         {/* Right Side Settings Panels */}
-        <div className="lg:col-span-8 space-y-6">
+        <div className="col-span-1 lg:col-span-8 space-y-4 sm:space-y-6">
           
           {/* ================= SECTION 1: WORKSPACE ================= */}
           {activeSection === 'workspace' && (
@@ -504,44 +488,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <span className="text-[11px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-full">
                     Active Clean
                   </span>
-                </div>
-              </div>
-
-              {/* Setting 2: Backend Connection (live) */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-white block">Zyntry Backend</label>
-                <div className="p-4 rounded-2xl bg-[#0F141A] border border-white/8 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 text-xs font-mono text-[#F3F4F6] truncate">
-                      <span
-                        className={`w-2 h-2 rounded-full shrink-0 ${
-                          backendStatus === 'connected'
-                            ? 'bg-emerald-400'
-                            : backendStatus === 'checking'
-                            ? 'bg-amber-400 animate-pulse'
-                            : 'bg-rose-400'
-                        }`}
-                      />
-                      <span className="truncate">{backendUrl}</span>
-                    </div>
-                    <div className="text-[11px] text-[#9CA3AF] mt-1 font-mono truncate">
-                      {backendStatus === 'checking'
-                        ? 'Checking connection…'
-                        : backendDetail}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={checkBackend}
-                    disabled={backendStatus === 'checking'}
-                    className="flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-white/8 hover:bg-white/12 border border-white/12 text-xs font-medium cursor-pointer transition-colors shrink-0 disabled:opacity-50"
-                  >
-                    <RefreshCw
-                      size={13}
-                      className={backendStatus === 'checking' ? 'animate-spin text-[#93C5FD]' : 'text-[#93C5FD]'}
-                    />
-                    <span>Test Connection</span>
-                  </button>
                 </div>
               </div>
 
@@ -1363,6 +1309,42 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </motion.div>
           )}
 
+        </div>
+      </div>
+
+      {/* Global Save Bar — bottom of the page */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-4 rounded-[22px] bg-[#121820]/90 border border-[#55E6A5]/25 shadow-md backdrop-blur-md">
+        <div className="flex items-center gap-2.5 text-xs text-[#9CA3AF]">
+          <Info size={14} className="text-[#93C5FD] shrink-0" />
+          <span>
+            Budget &amp; branch apply to new tasks. Changes you make here are live,
+            but press <span className="text-white font-medium">Save</span> to persist
+            them across reloads.
+          </span>
+        </div>
+        <motion.button
+          type="button"
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
+          onClick={() => {
+            onSave?.();
+            triggerToast('Settings saved — budget & branch persisted');
+          }}
+          className="flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[#173D30] to-[#1F4E3E] hover:from-[#1F4E3E] hover:to-[#26624E] text-[#55E6A5] border border-[#2D9E70] rounded-full text-xs font-semibold transition-all cursor-pointer shadow-lg shrink-0"
+        >
+          <Check size={14} />
+          <span>Save Settings</span>
+        </motion.button>
+      </div>
+
+      {/* Console Authority Notice Banner — bottom of the page */}
+      <div className="p-4 rounded-[22px] bg-[#121820]/90 border border-white/10 flex items-start gap-3 shadow-md backdrop-blur-md">
+        <Info size={16} className="text-[#93C5FD] shrink-0 mt-0.5" />
+        <div className="text-xs leading-relaxed text-[#9CA3AF]">
+          <span className="font-semibold text-white">Security & Governance Architecture: </span>
+          Raw API keys, provider credentials, organizational IAM roles, and project billing are securely managed in the{' '}
+          <span className="text-[#93C5FD] font-medium underline cursor-pointer hover:text-white">Rivet Console</span>. 
+          Local settings control your IDE experience, while the connected runtime acts as the authoritative security sandbox.
         </div>
       </div>
     </div>

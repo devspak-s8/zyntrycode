@@ -11,7 +11,8 @@ import {
 /**
  * Floating backend-connection control. The backend URL is pre-wired by default
  * (http://localhost:8787, or VITE_BACKEND_URL); this badge shows the live
- * connection state and lets you change URL/token (persisted in localStorage).
+ * connection state and lets you change URL/token. The URL is persisted locally;
+ * the API token is kept in session storage.
  */
 export const BackendBadge: React.FC = () => {
   const [open, setOpen] = useState(false);

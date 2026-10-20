@@ -19,6 +19,7 @@
       { "command": "zyntry.streamTask", "title": "Zyntry: Run Task (stream)" },
       { "command": "zyntry.ingestRepo", "title": "Zyntry: Ingest Repo Snapshot" },
       { "command": "zyntry.createWorkspace", "title": "Zyntry: Create Workspace (local runner)" },
+      { "command": "zyntry.attachWorkspace", "title": "Zyntry: Attach Workspace to Task" },
       { "command": "zyntry.startLocalRunner", "title": "Zyntry: Start Local Runner" },
       { "command": "zyntry.stopLocalRunner", "title": "Zyntry: Stop Local Runner" }
     ],

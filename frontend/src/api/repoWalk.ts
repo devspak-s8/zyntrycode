@@ -11,6 +11,15 @@ const SKIP_DIRS = new Set([
 const MAX_FILES = 500;
 const MAX_FILE_SIZE = 512 * 1024; // 512 KiB per file
 
+function isSensitivePath(parts: string[]): boolean {
+  const lower = parts.map((part) => part.toLowerCase());
+  const name = lower[lower.length - 1] || "";
+  return lower.some((part) => ['.git', '.ssh', '.aws', '.gnupg'].includes(part))
+    || ['.env', '.env.local', '.env.production', '.dev.vars', 'credentials.json',
+      'service-account.json', 'id_rsa', 'id_ed25519'].includes(name)
+    || ['.pem', '.key', '.p12', '.pfx'].some((suffix) => name.endsWith(suffix));
+}
+
 export interface RepoFilePayload {
   path: string;
   language?: string;
@@ -39,6 +48,7 @@ export async function walkRepoFiles(files: File[]): Promise<RepoFilePayload[]> {
     if (count >= MAX_FILES) break;
     const parts = (file.webkitRelativePath || file.name).split('/');
     if (parts.some((p) => SKIP_DIRS.has(p))) continue;
+    if (isSensitivePath(parts)) continue;
     if (file.size > MAX_FILE_SIZE) continue;
     const content = await file.text();
     out.push({
@@ -60,6 +70,17 @@ export function openDirectoryPicker(): Promise<File[]> {
     input.setAttribute('multiple', '');
     input.onchange = () => resolve(Array.from(input.files ?? []));
     input.onerror = () => reject(new Error('directory picker failed'));
+    input.click();
+  });
+}
+
+export function openFilePicker(): Promise<File[]> {
+  return new Promise((resolve, reject) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.setAttribute('multiple', '');
+    input.onchange = () => resolve(Array.from(input.files ?? []));
+    input.onerror = () => reject(new Error('file picker failed'));
     input.click();
   });
 }

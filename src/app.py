@@ -1,7 +1,6 @@
 """FastAPI application assembly for Zyntry Code."""
 
 import logging
-import os
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,7 +9,7 @@ from fastapi.responses import JSONResponse
 from metrics import metrics
 from routers import (artifacts, completion, executions, health, ingest,
                      metrics as metrics_router, models, semantic, stream, tasks,
-                     verification, workers, workspaces)
+                     verification, webhooks, workers, workspaces)
 from security import security_middleware
 
 logging.basicConfig(level=logging.INFO)
@@ -18,8 +17,9 @@ logger = logging.getLogger("zyntry-code")
 
 
 def _allowed_origins() -> list[str]:
-    raw = os.environ.get("ALLOWED_ORIGINS", "*")
-    return [o.strip() for o in raw.split(",") if o.strip()]
+    import os
+    raw = os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000")
+    return [o.strip() for o in raw.split(",") if o.strip() and o.strip() != "*"]
 
 
 app = FastAPI(
@@ -31,9 +31,9 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins(),
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Workspace-Token", "X-Runner-Token", "X-Runner-Id", "X-Webhook-Signature", "X-Webhook-Timestamp"],
+    expose_headers=[],
 )
 
 
@@ -58,10 +58,11 @@ app.include_router(artifacts.router)
 app.include_router(workspaces.router)
 app.include_router(workers.router)
 app.include_router(semantic.router)
+app.include_router(webhooks.router)
 
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     logger.exception("Unhandled error: %s", exc)
     metrics.incr("http_errors_total")
-    return JSONResponse(status_code=500, content={"error": "internal_error", "detail": str(exc)})
+    return JSONResponse(status_code=500, content={"error": "internal_error", "detail": "unexpected server error"})

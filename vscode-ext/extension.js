@@ -12,7 +12,7 @@ const vscode = require("vscode");
 const fs = require("fs");
 const fsp = require("fs/promises");
 const path = require("path");
-const { exec, execFile } = require("child_process");
+const { execFile } = require("child_process");
 
 let output; // vscode.OutputChannel
 let lastTaskId = null;
@@ -20,6 +20,7 @@ let runnerTimer = null;
 let runnerRunning = false;
 const RUNNER_ID = `vscode-${Math.random().toString(36).slice(2, 10)}`;
 const workspaceTokens = new Map(); // workspaceId -> runner token
+let extensionContext;
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -35,12 +36,23 @@ function config() {
 }
 
 function baseUrl() {
-  return String(config().get("backendUrl", "http://localhost:8787")).replace(/\/+$/, "");
+  const value = String(config().get("backendUrl", "http://localhost:8787")).replace(/\/+$/, "");
+  const parsed = new URL(value);
+  const local = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "::1";
+  if (parsed.protocol !== "https:" && !(local && parsed.protocol === "http:")) {
+    throw new Error("backendUrl must use HTTPS (HTTP is permitted only for localhost)");
+  }
+  return value;
+}
+
+async function apiToken() {
+  const stored = extensionContext?.secrets ? await extensionContext.secrets.get("zyntry.apiToken") : undefined;
+  return stored || String(config().get("apiToken", ""));
 }
 
 async function api(method, p, body, headers = {}) {
   const h = { "Content-Type": "application/json", ...headers };
-  const token = String(config().get("apiToken", ""));
+  const token = await apiToken();
   if (token) h["Authorization"] = `Bearer ${token}`;
   const resp = await fetch(`${baseUrl()}${p}`, {
     method,
@@ -172,7 +184,7 @@ async function streamTask() {
   if (!id) return;
   output.show();
   log(`streaming execution of task ${id}…`);
-  const token = String(config().get("apiToken", ""));
+  const token = await apiToken();
   const headers = {};
   if (token) headers["Authorization"] = `Bearer ${token}`;
   const resp = await fetch(`${baseUrl()}/tasks/${id}/execute/stream`, {
@@ -234,7 +246,7 @@ async function ingestRepo() {
   }
   const root = folders[0].uri.fsPath;
   const maxFiles = Number(config().get("runnerMaxFiles", 200));
-  const skipDirs = new Set(["node_modules", ".git", ".venv", "venv", "__pycache__", "dist", "build", ".next"]);
+  const skipDirs = new Set(["node_modules", ".git", ".venv", "venv", "__pycache__", "dist", "build", ".next", ".ssh", ".aws", ".gnupg"]);
   const skipExt = new Set([".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".zip", ".woff", ".woff2", ".ttf", ".map"]);
 
   const files = [];
@@ -254,6 +266,9 @@ async function ingestRepo() {
         continue;
       }
       const full = path.join(dir, entry.name);
+      const lowerName = entry.name.toLowerCase();
+      if ([".env", ".env.local", ".env.production", ".dev.vars", "credentials.json", "service-account.json", "id_rsa", "id_ed25519"].includes(lowerName)
+          || [".pem", ".key", ".p12", ".pfx"].some((suffix) => lowerName.endsWith(suffix))) continue;
       if (skipExt.has(path.extname(entry.name).toLowerCase())) continue;
       let size = 0;
       try {
@@ -300,14 +315,42 @@ async function createWorkspace() {
   const repoUrl = await vscode.window.showInputBox({
     prompt: "Repo URL (optional; local runner works in the open folder regardless)",
   });
+  const taskId = await vscode.window.showInputBox({
+    prompt: "Attach this workspace to a task id (optional — prefill: last task)",
+    value: lastTaskId || undefined,
+  });
   try {
-    const ws = await api("POST", "/workspaces", { provider: "local", repo_url: repoUrl || undefined });
+    const ws = await api("POST", "/workspaces", {
+      provider: "local",
+      repo_url: repoUrl || undefined,
+      task_id: taskId || undefined,
+    });
     if (ws.runner_token) workspaceTokens.set(ws.id, ws.runner_token);
-    log("workspace created:", ws.id, "provider=local");
-    output.appendLine(`runner token for ${ws.id}: ${ws.runner_token} (shown once)`);
+    log("workspace created:", ws.id, "provider=local", taskId ? `attached to task ${taskId}` : "");
+    output.appendLine(`runner token for ${ws.id} was stored in memory for this session`);
+    output.appendLine(`attached to task: ${ws.task_id || "none"} — attach later with "Zyntry: Attach Workspace to Task"`);
     output.show();
   } catch (err) {
     vscode.window.showErrorMessage(`Zyntry: create workspace failed: ${err.message}`);
+  }
+}
+
+async function attachWorkspace() {
+  const id = await vscode.window.showInputBox({ prompt: "Workspace id to attach" });
+  if (!id) return;
+  const taskId = await vscode.window.showInputBox({
+    prompt: "Task id to attach it to",
+    value: lastTaskId || undefined,
+  });
+  if (!taskId) return;
+  try {
+    const ws = await api("POST", `/workspaces/${id}/attach`, { task_id: taskId });
+    log("attached workspace", ws.id, "to task", ws.task_id);
+    vscode.window.showInformationMessage(
+      `Zyntry: workspace ${ws.id.slice(0, 8)} attached to task ${ws.task_id.slice(0, 8)} — Re-run the task so verification runs in your repo`,
+    );
+  } catch (err) {
+    vscode.window.showErrorMessage(`Zyntry: attach failed: ${err.message}`);
   }
 }
 
@@ -386,9 +429,81 @@ function workspaceRoot() {
 }
 
 function confine(root, relPath) {
+  const rootReal = fs.realpathSync.native(root);
   const p = path.resolve(root, relPath);
-  if (p !== root && !p.startsWith(root + path.sep)) throw new Error("path outside workspace");
+  let checked = p;
+  while (!fs.existsSync(checked) && checked !== path.dirname(checked)) checked = path.dirname(checked);
+  const real = fs.realpathSync.native(checked);
+  const candidate = fs.existsSync(p) ? real : path.join(real, path.relative(checked, p));
+  if (candidate !== rootReal && !candidate.startsWith(rootReal + path.sep)) throw new Error("path outside workspace");
   return p;
+}
+
+function isSensitivePath(relPath) {
+  const normalized = String(relPath || "").replace(/\\/g, "/").toLowerCase();
+  const parts = new Set(normalized.split("/"));
+  const name = normalized.split("/").pop();
+  return [".git", ".ssh", ".aws", ".gnupg"].some((part) => parts.has(part))
+    || [".env", ".env.local", ".env.production", ".dev.vars", "credentials.json",
+      "service-account.json", "id_rsa", "id_ed25519"].includes(name)
+    || [".pem", ".key", ".p12", ".pfx"].some((suffix) => name.endsWith(suffix));
+}
+
+function parseCommand(command) {
+  if (!command) throw new Error("empty command");
+  if (hasShellMetacharacters(command)) throw new Error("shell syntax is not permitted");
+  const args = [];
+  let current = "";
+  let quote = null;
+  let escaped = false;
+  for (const char of command) {
+    if (escaped) { current += char; escaped = false; continue; }
+    if (char === "\\" && quote !== "'") { escaped = true; continue; }
+    if ((char === '"' || char === "'") && (!quote || quote === char)) {
+      quote = quote ? null : char;
+      continue;
+    }
+    if (!quote && /\s/.test(char)) {
+      if (current) { args.push(current); current = ""; }
+    } else current += char;
+  }
+  if (escaped || quote) throw new Error("invalid command syntax");
+  if (current) args.push(current);
+  if (!args.length) throw new Error("empty command");
+  return args;
+}
+
+function hasShellMetacharacters(command) {
+  let quote = null;
+  let escaped = false;
+  for (let i = 0; i < String(command || "").length; i += 1) {
+    const char = command[i];
+    if (escaped) { escaped = false; continue; }
+    if (char === "\\" && quote !== "'") { escaped = true; continue; }
+    if ((char === '"' || char === "'") && (!quote || quote === char)) {
+      quote = quote ? null : char;
+      continue;
+    }
+    if (!quote && (/[;&|<>`\r\n]/.test(char) || command.slice(i, i + 2) === "$(")) return true;
+  }
+  return Boolean(quote || escaped);
+}
+
+function commandAllowed(command, allowed = []) {
+  let argv;
+  try { argv = parseCommand(command).map((part) => part.toLowerCase()); } catch { return false; }
+  const prefixes = allowed.length ? allowed : ["python", "python -m", "pytest", "npm", "npm test", "npm run", "pnpm", "pnpm test", "pnpm run", "yarn", "yarn test", "yarn run", "cargo test", "cargo check", "go test", "go vet", "make", "ruff", "mypy", "pyright", "flake8", "git status", "git diff", "git log", "git branch", "git add", "git commit", "ls", "dir", "cat", "pwd", "echo", "test", "which", "tsc", "eslint"];
+  return prefixes.some((prefix) => {
+    let prefixArgv;
+    try { prefixArgv = parseCommand(prefix).map((part) => part.toLowerCase()); } catch { return false; }
+    return prefixArgv.every((part, index) => argv[index] === part);
+  });
+}
+
+function commandDangerous(command) {
+  const lower = command.toLowerCase();
+  return hasShellMetacharacters(command)
+    || ["rm -rf", "git push", "git reset --hard", "npm publish", "cargo publish", "git restore", "git clean", "chmod", "chown", "curl ", "wget "].some((needle) => lower.includes(needle));
 }
 
 async function executeTool(req, ws) {
@@ -399,26 +514,40 @@ async function executeTool(req, ws) {
   if (tool === "fs.list") {
     const dir = confine(root, params.path || ".");
     const entries = await fsp.readdir(dir, { withFileTypes: true });
-    return { status: "succeeded", result: { entries: entries.map((e) => ({ name: e.name, is_dir: e.isDirectory() })) } };
+    return { status: "succeeded", result: { entries: entries
+      .filter((e) => !isSensitivePath(e.name))
+      .map((e) => ({ name: e.name, is_dir: e.isDirectory() })) } };
   }
 
   if (tool === "fs.read") {
+    if (isSensitivePath(params.path)) return { status: "failed", result: { error: "sensitive path is not readable" } };
     const p = confine(root, params.path);
+    if ((await fsp.stat(p)).size > 512 * 1024) return { status: "failed", result: { error: "file is too large" } };
     const content = await fsp.readFile(p, "utf8");
     return { status: "succeeded", result: { path: params.path, content } };
   }
 
   if (tool === "fs.write") {
+    if (isSensitivePath(params.path)) return { status: "failed", result: { error: "sensitive path is not writable" } };
     const p = confine(root, params.path);
-    const before = fs.existsSync(p) ? await fsp.readFile(p, "utf8") : null;
+    if (String(params.content || "").length > 512 * 1024) return { status: "failed", result: { error: "file is too large" } };
+    const before = fs.existsSync(p)
+      ? (await fsp.stat(p)).size <= 512 * 1024 ? await fsp.readFile(p, "utf8") : null
+      : null;
+    if (fs.existsSync(p) && before === null) return { status: "failed", result: { error: "file is too large" } };
     await fsp.mkdir(path.dirname(p), { recursive: true });
     await fsp.writeFile(p, params.content || "", "utf8");
     return { status: "succeeded", result: { files: [{ path: params.path, op: before === null ? "create" : "modify", before, after: params.content }] } };
   }
 
   if (tool === "fs.edit") {
+    if (isSensitivePath(params.path)) return { status: "failed", result: { error: "sensitive path is not writable" } };
     const p = confine(root, params.path);
+    if (String(params.search || "").length > 10_000 || String(params.replace || "").length > 512 * 1024) {
+      return { status: "failed", result: { error: "edit payload is too large" } };
+    }
     const content = await fsp.readFile(p, "utf8");
+    if (Buffer.byteLength(content, "utf8") > 512 * 1024) return { status: "failed", result: { error: "file is too large" } };
     const search = params.search;
     const parts = content.split(search);
     if (!search || parts.length < 2) {
@@ -428,31 +557,40 @@ async function executeTool(req, ws) {
       return { status: "failed", result: { error: `search string is ambiguous in ${params.path} (${parts.length - 1} matches)` } };
     }
     const updated = parts[0] + params.replace + parts[1];
+    if (Buffer.byteLength(updated, "utf8") > 512 * 1024) return { status: "failed", result: { error: "file is too large" } };
     await fsp.writeFile(p, updated, "utf8");
     return { status: "succeeded", result: { files: [{ path: params.path, op: "modify", before: content, after: updated }] } };
   }
 
   if (tool === "fs.delete") {
+    if (isSensitivePath(params.path)) return { status: "failed", result: { error: "sensitive path is not deletable" } };
     const p = confine(root, params.path);
     await fsp.unlink(p);
     return { status: "succeeded", result: { files: [{ path: params.path, op: "delete", before: null, after: null }] } };
   }
 
   if (tool === "fs.search") {
+    if (String(params.pattern || "").length > 256) return { status: "failed", result: { error: "search pattern is too long" } };
     const dir = confine(root, params.path || ".");
-    const pattern = new RegExp(params.pattern, "i");
+    let pattern;
+    try { pattern = new RegExp(params.pattern, "i"); } catch (err) { return { status: "failed", result: { error: "invalid search pattern" } }; }
     const matches = [];
     const walk = async (d) => {
       for (const entry of await fsp.readdir(d, { withFileTypes: true })) {
         if (entry.isDirectory()) {
-          if (["node_modules", ".git"].includes(entry.name)) continue;
+          if (["node_modules", ".git", ".ssh", ".aws", ".gnupg"].includes(entry.name) || isSensitivePath(entry.name)) continue;
           await walk(path.join(d, entry.name));
           continue;
         }
         const full = path.join(d, entry.name);
         const rel = path.relative(root, full).replace(/\\/g, "/");
+        if (isSensitivePath(rel)) continue;
         try {
-          const content = await fsp.readFile(full, "utf8");
+          const real = await fsp.realpath(full);
+          const rootReal = await fsp.realpath(root);
+          if (real !== rootReal && !real.startsWith(rootReal + path.sep)) continue;
+          if ((await fsp.stat(real)).size > 512 * 1024) continue;
+          const content = await fsp.readFile(real, "utf8");
           for (const [i, line] of content.split("\n").entries()) {
             if (pattern.test(line)) matches.push({ path: rel, line: i + 1, text: line.trim().slice(0, 300) });
           }
@@ -485,19 +623,24 @@ async function executeTool(req, ws) {
           const state = line.slice(0, 2).trim();
           let p = line.slice(3);
           if (p.includes(" -> ")) p = p.split(" -> ")[1];
-          files.push({ path: p, op: state === "??" ? "create" : "D".includes(state) ? "delete" : "modify" });
+          if (!isSensitivePath(p)) files.push({ path: p, op: state === "??" ? "create" : "D".includes(state) ? "delete" : "modify" });
         }
         const summary = await git(["diff", "--stat"]);
         return { status: "succeeded", result: { files, summary: summary.trim() } };
       }
       if (tool === "git.commit") {
-        await git(["add", "-A"]);
+        await git(["add", "-A", "--", ".", ":(exclude).env", ":(exclude).env.*",
+          ":(exclude).dev.vars", ":(exclude)**/.env", ":(exclude)**/.env.*",
+          ":(exclude)**/.dev.vars", ":(exclude)**/*.pem", ":(exclude)**/*.key"]);
         await git(["commit", "-m", params.message || "zyntry-code changes"]);
         const head = (await git(["rev-parse", "HEAD"])).trim();
         return { status: "succeeded", result: { committed: true, head } };
       }
       if (tool === "git.push") {
         const branch = params.branch || (await git(["rev-parse", "--abbrev-ref", "HEAD"])).trim();
+        if (!/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(branch) || branch.includes("..")) {
+          return { status: "failed", result: { error: "invalid git branch" } };
+        }
         await git(["push", "origin", branch]);
         return { status: "succeeded", result: { pushed: true, branch } };
       }
@@ -510,8 +653,12 @@ async function executeTool(req, ws) {
     const timeout = (ws.timeout_seconds || 300) * 1000;
     const started = Date.now();
     try {
+      const argv = parseCommand(String(params.cmd || ""));
+      if (!req.dangerous && (!commandAllowed(String(params.cmd || ""), ws.allowed_commands || []) || commandDangerous(String(params.cmd || "")))) {
+        return { status: "failed", result: { error: "command is not allowed" } };
+      }
       const { stdout, stderr, code, timedOut } = await new Promise((resolve, reject) => {
-        const child = exec(params.cmd || "", { cwd: root, timeout, maxBuffer: 4 * 1024 * 1024 }, (error, stdout, stderr) => {
+        execFile(argv[0], argv.slice(1), { cwd: root, timeout, maxBuffer: 4 * 1024 * 1024, windowsHide: true }, (error, stdout, stderr) => {
           if (error) {
             resolve({ stdout, stderr, code: error.code, timedOut: error.killed || error.signal === "SIGTERM" });
             return;
@@ -542,6 +689,16 @@ async function executeTool(req, ws) {
 // ---------------------------------------------------------------------------
 
 function activate(context) {
+  extensionContext = context;
+  const configured = String(config().get("apiToken", ""));
+  if (configured && context.secrets) {
+    context.secrets.store("zyntry.apiToken", configured).then(async () => {
+      // Migrate legacy plaintext settings into VS Code SecretStorage. Clear
+      // both scopes only after the secret write succeeds.
+      await config().update("apiToken", undefined, vscode.ConfigurationTarget.Global);
+      await config().update("apiToken", undefined, vscode.ConfigurationTarget.Workspace);
+    }).catch(() => {});
+  }
   output = vscode.window.createOutputChannel("Zyntry Code");
   const reg = (cmd, fn) => vscode.commands.registerCommand(cmd, fn);
   context.subscriptions.push(
@@ -551,6 +708,7 @@ function activate(context) {
     reg("zyntry.streamTask", streamTask),
     reg("zyntry.ingestRepo", ingestRepo),
     reg("zyntry.createWorkspace", createWorkspace),
+    reg("zyntry.attachWorkspace", attachWorkspace),
     reg("zyntry.startLocalRunner", startLocalRunner),
     reg("zyntry.stopLocalRunner", stopLocalRunner),
   );

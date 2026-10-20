@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { WorkspaceMode } from '../types';
-import { WORKSPACE_FILES } from '../data/mockData';
+import { RepoFilePayload, openFilePicker, walkRepoFiles } from '../api/repoWalk';
 import { 
   ArrowUp,
   Square, 
@@ -13,19 +13,27 @@ import {
   X, 
   Check, 
   FileCode,
-  Brain,
+  ListChecks,
   Mic,
   GitBranch,
-  CornerDownLeft
+  CornerDownLeft,
+  Cloud,
+  Laptop,
+  FileUp
 } from 'lucide-react';
 
+export type ExecutionTarget = 'local' | 'cloud';
+
 interface ComposerProps {
-  onSendMessage: (content: string, attachedFiles: string[]) => void;
+  onSendMessage: (content: string, attachedFiles: RepoFilePayload[]) => void;
   onStopAgent?: () => void;
   isRunning?: boolean;
   mode?: WorkspaceMode;
   onModeChange?: (mode: WorkspaceMode) => void;
   initialText?: string;
+  executionTarget?: ExecutionTarget;
+  onExecutionTargetChange?: (target: ExecutionTarget) => void;
+  cloudAvailable?: boolean;
 }
 
 const MODE_ITEMS: { id: WorkspaceMode; label: string; icon: React.ReactNode; desc: string }[] = [
@@ -34,6 +42,12 @@ const MODE_ITEMS: { id: WorkspaceMode; label: string; icon: React.ReactNode; des
     label: 'Agent', 
     icon: <Bot size={13} />, 
     desc: 'Autonomous multi-step execution with planning, tools, and verification' 
+  },
+  {
+    id: 'plan',
+    label: 'Plan',
+    icon: <ListChecks size={13} />,
+    desc: 'Draft a full implementation plan first — review, exclude stages, then run'
   },
   { 
     id: 'edit', 
@@ -63,15 +77,19 @@ export const Composer: React.FC<ComposerProps> = ({
   mode = 'agent',
   onModeChange,
   initialText = '',
+  executionTarget = 'local',
+  onExecutionTargetChange,
+  cloudAvailable = false,
 }) => {
   const [text, setText] = useState(initialText);
-  const [attachedFiles, setAttachedFiles] = useState<string[]>(['src/auth/session.ts']);
+  const [attachedFiles, setAttachedFiles] = useState<RepoFilePayload[]>([]);
+  const [isPickingFiles, setIsPickingFiles] = useState(false);
   const [showModeMenu, setShowModeMenu] = useState(false);
   const [showFileMenu, setShowFileMenu] = useState(false);
+  const [showTargetMenu, setShowTargetMenu] = useState(false);
   const [showQuickPrompts, setShowQuickPrompts] = useState(true);
   
   // Interactive features
-  const [isDeepReasoning, setIsDeepReasoning] = useState(true);
   const [isListening, setIsListening] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -90,6 +108,7 @@ export const Composer: React.FC<ComposerProps> = ({
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setShowModeMenu(false);
         setShowFileMenu(false);
+        setShowTargetMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -116,15 +135,17 @@ export const Composer: React.FC<ComposerProps> = ({
     } else if (e.key === 'Escape') {
       setShowModeMenu(false);
       setShowFileMenu(false);
+      setShowTargetMenu(false);
     }
   };
 
   const handleSubmit = () => {
-    if (!text.trim() || isRunning) return;
+    if (!text.trim()) return;
     onSendMessage(text.trim(), attachedFiles);
     setText('');
     setShowModeMenu(false);
     setShowFileMenu(false);
+    setShowTargetMenu(false);
     if (textareaRef.current) {
       textareaRef.current.style.height = '32px';
     }
@@ -138,17 +159,31 @@ export const Composer: React.FC<ComposerProps> = ({
     }, 20);
   };
 
-  const toggleFile = (filePath: string) => {
-    if (attachedFiles.includes(filePath)) {
-      setAttachedFiles(attachedFiles.filter((f) => f !== filePath));
-    } else {
-      setAttachedFiles([...attachedFiles, filePath]);
+  const handleAttachFiles = async () => {
+    setIsPickingFiles(true);
+    try {
+      const picked = await openFilePicker();
+      const walked = await walkRepoFiles(picked);
+      if (walked.length) {
+        setAttachedFiles((prev) => {
+          const known = new Set(prev.map((f) => f.path));
+          return [...prev, ...walked.filter((f) => !known.has(f.path))];
+        });
+      }
+    } catch {
+      /* user cancelled the picker */
+    } finally {
+      setIsPickingFiles(false);
     }
   };
 
   const removeFile = (filePath: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setAttachedFiles(attachedFiles.filter((f) => f !== filePath));
+    setAttachedFiles(attachedFiles.filter((f) => f.path !== filePath));
+  };
+
+  const clearFiles = () => {
+    setAttachedFiles([]);
   };
 
   const toggleDictation = () => {
@@ -229,6 +264,7 @@ export const Composer: React.FC<ComposerProps> = ({
                   onClick={() => {
                     onModeChange?.(item.id);
                     setShowModeMenu(false);
+                    setShowTargetMenu(false);
                   }}
                   className={`w-full flex items-start gap-3 px-3.5 py-2.5 rounded-[18px] text-left text-xs transition-all cursor-pointer ${
                     mode === item.id 
@@ -254,7 +290,7 @@ export const Composer: React.FC<ComposerProps> = ({
           )}
         </AnimatePresence>
 
-        {/* 2. Floating Context / File Picker Popover */}
+        {/* 2. Floating Context / File Picker Popover (real folder → backend repo snapshot) */}
         <AnimatePresence>
           {showFileMenu && (
             <motion.div
@@ -265,32 +301,63 @@ export const Composer: React.FC<ComposerProps> = ({
               className="absolute bottom-full mb-3.5 left-8 sm:left-24 w-84 max-h-76 overflow-y-auto bg-[#141A22] border border-white/12 rounded-[24px] p-3.5 shadow-2xl backdrop-blur-2xl z-40 space-y-1.5"
             >
               <div className="px-3 py-1 flex items-center justify-between text-[10px] font-mono text-[#9CA3AF] uppercase tracking-wider border-b border-white/6 pb-2">
-                <span>In-Scope Context Files</span>
-                <span className="text-[#93C5FD] font-mono font-medium">{attachedFiles.length} attached</span>
+                <span>Attached Files</span>
+                <span className="text-[#93C5FD] font-mono font-medium">
+                  {attachedFiles.length} attached
+                </span>
               </div>
-              <div className="space-y-1 pt-1">
-                {WORKSPACE_FILES.map((file) => {
-                  const isSelected = attachedFiles.includes(file);
-                  return (
+
+              {/* Real file attachment → sent to POST /tasks/{id}/repo */}
+              <button
+                type="button"
+                onClick={handleAttachFiles}
+                disabled={isPickingFiles}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[14px] text-left text-xs font-medium text-[#93C5FD] bg-[#93C5FD]/10 hover:bg-[#93C5FD]/15 border border-[#93C5FD]/25 transition-all cursor-pointer disabled:opacity-50"
+              >
+                <FileUp size={13} className="shrink-0" />
+                <span>{isPickingFiles ? 'Reading files…' : 'Attach files…'}</span>
+              </button>
+
+              {attachedFiles.length > 0 && (
+                <div className="space-y-1 pt-1">
+                  <div className="flex items-center justify-between px-3 pb-1">
+                    <span className="text-[10px] font-mono text-[#6F7B77]">
+                      Will be ingested into the task's repo snapshot
+                    </span>
                     <button
-                      key={file}
                       type="button"
-                      onClick={() => toggleFile(file)}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-[14px] text-left text-xs font-mono transition-all cursor-pointer ${
-                        isSelected 
-                          ? 'bg-white/10 text-[#93C5FD] font-medium border border-[#93C5FD]/30' 
-                          : 'text-[#9CA3AF] hover:text-white hover:bg-white/5 border border-transparent'
-                      }`}
+                      onClick={clearFiles}
+                      className="text-[10px] font-mono text-[#FF7D7D] hover:text-white transition-colors cursor-pointer"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                  {attachedFiles.slice(0, 20).map((file) => (
+                    <div
+                      key={file.path}
+                      className="flex items-center justify-between px-3 py-2 rounded-[14px] text-left text-xs font-mono text-[#93C5FD] bg-white/6 border border-transparent"
                     >
                       <div className="flex items-center gap-2.5 truncate">
-                        <FileCode size={13} className={isSelected ? 'text-[#93C5FD]' : 'text-[#6F7B77]'} />
-                        <span className="truncate">{file}</span>
+                        <FileCode size={13} className="text-[#93C5FD] shrink-0" />
+                        <span className="truncate">{file.path}</span>
                       </div>
-                      {isSelected && <Check size={13} className="shrink-0 text-[#93C5FD]" />}
-                    </button>
-                  );
-                })}
-              </div>
+                      <button
+                        type="button"
+                        onClick={(e) => removeFile(file.path, e)}
+                        className="text-[#9CA3AF] hover:text-white p-0.5 shrink-0 cursor-pointer transition-colors"
+                        title={`Remove ${file.path}`}
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                  {attachedFiles.length > 20 && (
+                    <p className="px-3 text-[10px] font-mono text-[#6F7B77]">
+                      +{attachedFiles.length - 20} more files
+                    </p>
+                  )}
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -301,23 +368,28 @@ export const Composer: React.FC<ComposerProps> = ({
           {/* Active Attached Files Chips */}
           {attachedFiles.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 px-2 pt-0.5">
-              {attachedFiles.map((file) => (
+              {attachedFiles.slice(0, 6).map((file) => (
                 <span
-                  key={file}
+                  key={file.path}
                   className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/6 hover:bg-white/10 border border-[#93C5FD]/25 text-[11px] font-mono text-[#93C5FD] transition-colors shadow-xs"
                 >
                   <FileCode size={11} className="text-[#93C5FD]" />
-                  <span>{file.split('/').pop()}</span>
+                  <span>{file.path.split('/').pop()}</span>
                   <button
                     type="button"
-                    onClick={(e) => removeFile(file, e)}
+                    onClick={(e) => removeFile(file.path, e)}
                     className="text-[#9CA3AF] hover:text-white p-0.5 rounded-full cursor-pointer ml-0.5 transition-colors"
-                    title={`Remove ${file}`}
+                    title={`Remove ${file.path}`}
                   >
                     <X size={11} />
                   </button>
                 </span>
               ))}
+              {attachedFiles.length > 6 && (
+                <span className="text-[10px] font-mono text-[#6F7B77] px-1">
+                  +{attachedFiles.length - 6} more
+                </span>
+              )}
             </div>
           )}
 
@@ -329,7 +401,13 @@ export const Composer: React.FC<ComposerProps> = ({
               value={text}
               onChange={handleChange}
               onKeyDown={handleKeyDown}
-              placeholder={isListening ? "Listening to voice input…" : "Describe what you want Zyntry Code to execute (Enter to run)…"}
+              placeholder={
+                isListening
+                  ? 'Listening to voice input…'
+                  : isRunning
+                  ? 'Agent is running — steer it: "wait, do X instead…" (Enter to send)'
+                  : 'Describe what you want Zyntry Code to execute (Enter to run)…'
+              }
               className="bg-transparent flex-1 min-w-0 text-xs sm:text-[13px] md:text-sm text-[#F3F4F6] placeholder-[#9CA3AF] focus:outline-none resize-none py-1.5 font-sans leading-relaxed tracking-normal max-h-36 overflow-y-auto caret-[#93C5FD]"
               style={{ minHeight: '32px', height: '32px' }}
             />
@@ -365,15 +443,28 @@ export const Composer: React.FC<ComposerProps> = ({
 
             {/* Send or Stop Action Button */}
             {isRunning ? (
-              <motion.button
-                type="button"
-                whileTap={{ scale: 0.94 }}
-                onClick={onStopAgent}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#2A161A] text-[#FF7D7D] border border-[#FF7D7D]/40 text-xs font-semibold cursor-pointer shrink-0 hover:bg-[#341B20] transition-colors shadow-md mb-0.5"
-              >
-                <Square size={11} className="fill-current" />
-                <span>Stop</span>
-              </motion.button>
+              <div className="flex items-center gap-1.5 shrink-0 mb-0.5">
+                {text.trim().length > 0 && (
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.94 }}
+                    onClick={handleSubmit}
+                    className="w-9 h-9 rounded-full bg-white text-zinc-950 hover:bg-zinc-200 flex items-center justify-center cursor-pointer shadow-md border border-white/40 transition-colors"
+                    title="Send instruction mid-run (Enter)"
+                  >
+                    <ArrowUp size={15} strokeWidth={2.6} />
+                  </motion.button>
+                )}
+                <motion.button
+                  type="button"
+                  whileTap={{ scale: 0.94 }}
+                  onClick={onStopAgent}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#2A161A] text-[#FF7D7D] border border-[#FF7D7D]/40 text-xs font-semibold cursor-pointer shrink-0 hover:bg-[#341B20] transition-colors shadow-md"
+                >
+                  <Square size={11} className="fill-current" />
+                  <span>Stop</span>
+                </motion.button>
+              </div>
             ) : (
               <motion.button
                 type="button"
@@ -399,12 +490,106 @@ export const Composer: React.FC<ComposerProps> = ({
             {/* Left Action Pills */}
             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               
+              {/* Action 0: Execution Target dropdown (local vs cloud) */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowTargetMenu(!showTargetMenu);
+                    setShowModeMenu(false);
+                    setShowFileMenu(false);
+                  }}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-[11px] font-medium cursor-pointer transition-all shadow-xs ${
+                    executionTarget === 'cloud'
+                      ? 'bg-[#93C5FD]/10 border-[#93C5FD]/40 text-[#93C5FD] hover:bg-[#93C5FD]/15'
+                      : 'bg-white/6 hover:bg-white/10 border-white/10 text-[#F3F4F6]'
+                  }`}
+                  title="Execution target"
+                >
+                  {executionTarget === 'cloud' ? <Cloud size={12} /> : <Laptop size={12} />}
+                  <span>{executionTarget === 'cloud' ? 'Cloud' : 'Local'}</span>
+                  <ChevronUp size={12} className={`text-[#9CA3AF] transition-transform ${showTargetMenu ? 'rotate-180' : ''}`} />
+                </button>
+
+                <AnimatePresence>
+                  {showTargetMenu && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 12, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 12, scale: 0.95 }}
+                      transition={{ type: 'spring', stiffness: 450, damping: 28 }}
+                      className="absolute bottom-full mb-2 left-0 w-60 bg-[#141A22] border border-white/12 rounded-[20px] p-1.5 shadow-2xl backdrop-blur-2xl z-40 space-y-0.5"
+                    >
+                      <div className="px-2.5 py-1.5 text-[10px] font-mono text-[#9CA3AF] uppercase tracking-wider border-b border-white/6 mb-1">
+                        Execution Target
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onExecutionTargetChange?.('local');
+                          setShowTargetMenu(false);
+                        }}
+                        className={`w-full flex items-start gap-2.5 px-2.5 py-2 rounded-xl text-left cursor-pointer transition-colors ${
+                          executionTarget === 'local' ? 'bg-white/10' : 'hover:bg-white/5'
+                        }`}
+                      >
+                        <Laptop size={13} className="text-[#93C5FD] mt-0.5 shrink-0" />
+                        <span className="flex-1 min-w-0">
+                          <span className={`block text-xs font-medium ${executionTarget === 'local' ? 'text-[#F2F6F4]' : 'text-[#A3AEAA]'}`}>
+                            Local
+                          </span>
+                          <span className="block text-[10px] text-[#6F7B77] font-mono leading-snug">
+                            runs on this machine — it must stay on
+                          </span>
+                        </span>
+                        {executionTarget === 'local' && <Check size={12} className="text-[#93C5FD] mt-0.5 shrink-0" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!cloudAvailable) return;
+                          onExecutionTargetChange?.('cloud');
+                          setShowTargetMenu(false);
+                        }}
+                        disabled={!cloudAvailable}
+                        className={`w-full flex items-start gap-2.5 px-2.5 py-2 rounded-xl text-left transition-colors ${
+                          !cloudAvailable
+                            ? 'opacity-45 cursor-default'
+                            : executionTarget === 'cloud'
+                            ? 'bg-white/10 cursor-pointer'
+                            : 'hover:bg-white/5 cursor-pointer'
+                        }`}
+                      >
+                        <Cloud size={13} className="text-[#93C5FD] mt-0.5 shrink-0" />
+                        <span className="flex-1 min-w-0">
+                          <span className={`block text-xs font-medium ${executionTarget === 'cloud' ? 'text-[#F2F6F4]' : 'text-[#A3AEAA]'}`}>
+                            Cloud
+                            {!cloudAvailable && (
+                              <span className="text-[#6F7B77] font-mono ml-1.5">unavailable</span>
+                            )}
+                          </span>
+                          <span className="block text-[10px] text-[#6F7B77] font-mono leading-snug">
+                            {cloudAvailable
+                              ? 'durable Workers workflow — close the tab and it keeps running'
+                              : 'deploy the Worker with EXECUTION_WORKFLOW to enable'}
+                          </span>
+                        </span>
+                        {executionTarget === 'cloud' && cloudAvailable && (
+                          <Check size={12} className="text-[#93C5FD] mt-0.5 shrink-0" />
+                        )}
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
               {/* Action 1: Mode Selector */}
               <button
                 type="button"
                 onClick={() => {
                   setShowModeMenu(!showModeMenu);
                   setShowFileMenu(false);
+                  setShowTargetMenu(false);
                 }}
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/6 hover:bg-white/10 border border-white/10 text-[11px] font-medium text-[#F3F4F6] cursor-pointer transition-all shadow-xs"
                 title="Change Execution Mode"
@@ -414,42 +599,26 @@ export const Composer: React.FC<ComposerProps> = ({
                 <ChevronUp size={12} className={`text-[#9CA3AF] transition-transform ${showModeMenu ? 'rotate-180' : ''}`} />
               </button>
 
-              {/* Action 2: Context / File Attachment Pill */}
+              {/* Action 2: File Attachment — icon only */}
               <button
                 type="button"
                 onClick={() => {
                   setShowFileMenu(!showFileMenu);
                   setShowModeMenu(false);
+                  setShowTargetMenu(false);
                 }}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-[11px] font-mono cursor-pointer transition-all shadow-xs ${
+                className={`p-2 rounded-full border transition-all cursor-pointer shadow-xs ${
                   attachedFiles.length > 0 
                     ? 'bg-white/6 border-[#93C5FD]/30 text-[#93C5FD] hover:bg-white/10' 
                     : 'bg-transparent border-white/8 text-[#9CA3AF] hover:text-[#F3F4F6] hover:border-white/15'
                 }`}
-                title="Manage Workspace Context Files"
+                title={
+                  attachedFiles.length > 0
+                    ? `${attachedFiles.length} file${attachedFiles.length === 1 ? '' : 's'} attached`
+                    : 'Attach files'
+                }
               >
-                <Paperclip size={12} />
-                <span>
-                  {attachedFiles.length === 1 
-                    ? attachedFiles[0].split('/').pop() 
-                    : `${attachedFiles.length} files`}
-                </span>
-              </button>
-
-              {/* Action 3: Deep Reasoning Toggle */}
-              <button
-                type="button"
-                onClick={() => setIsDeepReasoning(!isDeepReasoning)}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-[11px] cursor-pointer transition-all shadow-xs ${
-                  isDeepReasoning 
-                    ? 'bg-white/6 border-white/12 text-[#F3F4F6] hover:bg-white/10' 
-                    : 'bg-transparent border-white/8 text-[#9CA3AF] hover:text-[#F3F4F6]'
-                }`}
-                title="Toggle Deep Reasoning Model Allocation"
-              >
-                <Brain size={12} className={isDeepReasoning ? "text-[#93C5FD]" : "text-[#9CA3AF]"} />
-                <span className="hidden sm:inline">Reasoning</span>
-                <span className={`w-1.5 h-1.5 rounded-full ${isDeepReasoning ? "bg-[#55E6A5]" : "bg-white/20"}`} />
+                <Paperclip size={13} />
               </button>
 
             </div>

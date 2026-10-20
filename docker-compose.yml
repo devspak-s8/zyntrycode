@@ -13,7 +13,8 @@ services:
     restart: unless-stopped
     environment:
       ZYNTRY_BACKEND_URL: ${ZYNTRY_BACKEND_URL:-http://host.docker.internal:8787}
-      ZYNTRY_TOKEN: ${ZYNTRY_TOKEN:-}
+      ZYNTRY_TOKEN: ${ZYNTRY_TOKEN:?set the backend API token}
+      ZYNTRY_RUNNER_TOKEN: ${ZYNTRY_RUNNER_TOKEN:?set a runner token}
       ZYNTRY_WORKER_NAME: ${ZYNTRY_WORKER_NAME:-default}
       # Kernel-enforced caps per command (CPU seconds / address-space MB).
       # A `while True` loop or a memory bomb is killed by the OS, not the worker.
@@ -22,6 +23,14 @@ services:
     volumes:
       # Persistent workspace checkouts + background-process logs.
       - ./worker-data:/workspaces
+    read_only: true
+    init: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
     # Isolate the worker on its own bridge network. For a fully air-gapped
     # worker, set `internal: true` below (blocks all egress — only usable if
     # the backend is reachable on the host without internet).

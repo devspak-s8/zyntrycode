@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ChatMessage, AgentState, ToolActivityItem } from '../types';
 import { StatusBadge } from './StatusBadge';
 import { LiveProgress } from './LiveProgress';
+import { DiffReview } from './DiffReview';
 import {
   User,
   FileCode,
@@ -12,13 +13,24 @@ import {
   HelpCircle,
   GitPullRequest,
   ShieldCheck,
+  Timer,
 } from 'lucide-react';
+
+export function formatDuration(totalSeconds: number): string {
+  const s = Math.max(0, Math.round(totalSeconds));
+  const minutes = Math.floor(s / 60);
+  const seconds = s % 60;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+}
 
 interface ConversationViewProps {
   messages: ChatMessage[];
   agentState: AgentState;
   liveActivities?: ToolActivityItem[];
   isAgentRunning?: boolean;
+  runStartedAt?: number | null;
+  streamingText?: string;
   onApplyChanges: () => void;
   onRejectChanges: () => void;
   onRetryVerification: () => void;
@@ -26,6 +38,12 @@ interface ConversationViewProps {
   onSeedComposer?: (text: string) => void;
   onNavigateTab?: (tab: 'changes' | 'verification') => void;
   isChangesApplied?: boolean;
+  /** Retry just the failed stages (reuses prior outputs of the rest). */
+  onRetryFailedStages?: () => void;
+  /** Ask mode only: convert the answer into a Plan-mode task ("Plan a fix"). */
+  onPlanFix?: () => void;
+  /** True when the latest summary comes from an ask-mode task. */
+  isAskMode?: boolean;
 }
 
 export const ConversationView: React.FC<ConversationViewProps> = ({
@@ -33,11 +51,17 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   agentState,
   liveActivities = [],
   isAgentRunning = false,
+  runStartedAt = null,
+  streamingText = '',
   onApplyChanges,
+  onRejectChanges,
   onRetryVerification,
   onSeedComposer,
   onNavigateTab,
   isChangesApplied = false,
+  onRetryFailedStages,
+  onPlanFix,
+  isAskMode = false,
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -60,7 +84,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   }, [isAgentRunning, liveActivities.length, agentState]);
 
   return (
-    <div className="w-full px-6 sm:px-10 md:px-16 lg:px-20 xl:px-24 py-6 space-y-5 pb-36 sm:pb-44 flex flex-col">
+    <div className="w-full px-4 sm:px-10 md:px-16 lg:px-20 xl:px-24 py-6 space-y-7 pb-36 sm:pb-44 flex flex-col">
       <AnimatePresence initial={false}>
         {messages.map((msg, idx) => {
           const isUser = msg.role === 'user';
@@ -73,7 +97,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                 initial={{ opacity: 0, y: 10, scale: 0.99 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-                className="self-end ml-auto max-w-xl sm:max-w-2xl w-auto p-4 sm:p-4.5 bg-[#18212C] hover:bg-[#1C2734] border border-white/10 hover:border-white/18 rounded-[18px] sm:rounded-[20px] text-xs space-y-2.5 shadow-lg transition-all mb-2"
+                className="self-end ml-auto max-w-xl sm:max-w-2xl w-auto p-4 sm:p-4.5 bg-[#18212C] hover:bg-[#1C2734] border border-white/10 hover:border-white/18 rounded-[18px] sm:rounded-[20px] text-xs space-y-2.5 shadow-lg transition-all mb-6"
               >
                 {/* User Header */}
                 <div className="flex items-center justify-between gap-3 text-[11px]">
@@ -122,7 +146,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
               initial={{ opacity: 0, y: 10, scale: 0.99 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-              className="w-full p-4 sm:p-5 md:p-6 bg-[#121820]/95 hover:bg-[#141C25] border border-white/8 hover:border-white/14 rounded-[22px] sm:rounded-[26px] text-xs space-y-3.5 shadow-xl backdrop-blur-xl transition-all text-left"
+              className="w-full max-w-6xl p-4 sm:p-5 md:p-6 bg-[#121820]/95 hover:bg-[#141C25] border border-white/8 hover:border-white/14 rounded-[22px] sm:rounded-[26px] text-xs space-y-3.5 shadow-xl backdrop-blur-xl transition-all text-left"
             >
               {/* Clean Minimal Header */}
               <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-white/6 text-[11px]">
@@ -139,6 +163,14 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                   </span>
                 </div>
               </div>
+
+              {/* Duration timer below the title */}
+              {typeof msg.durationSeconds === 'number' && msg.durationSeconds > 0 && (
+                <div className="flex items-center gap-1.5 -mt-2.5 text-[10px] font-mono text-[#6F7B77]">
+                  <Timer size={11} className="text-[#6F7B77]" />
+                  <span>Took {formatDuration(msg.durationSeconds)}</span>
+                </div>
+              )}
 
               {/* Natural narrative text */}
               <div className="text-[#F3F4F6] leading-relaxed whitespace-pre-line text-xs sm:text-[13px] font-sans">
@@ -171,6 +203,18 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                       <span>Verification</span>
                     </button>
                   )}
+                </div>
+              )}
+
+              {/* Proposed diff — what changed, added, removed */}
+              {hasChanges && (
+                <div className="pt-1">
+                  <DiffReview
+                    files={msg.diffFiles!}
+                    onApplyChanges={onApplyChanges}
+                    onRejectChanges={onRejectChanges}
+                    isApplied={isChangesApplied}
+                  />
                 </div>
               )}
 
@@ -224,6 +268,30 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                     </button>
                   </>
                 )}
+
+                {isLastAssistantMessage && onRetryFailedStages && agentState === 'failed' && (
+                  <button
+                    type="button"
+                    onClick={onRetryFailedStages}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#2A161A]/60 hover:bg-[#341B20]/70 border border-[#FF7D7D]/35 text-[11px] font-semibold text-[#FF9D9D] transition-all cursor-pointer"
+                    title="Re-run only the failed stages — prior outputs of the rest are reused"
+                  >
+                    <RotateCcw size={12} />
+                    <span>Retry failed stages</span>
+                  </button>
+                )}
+
+                {isLastAssistantMessage && onPlanFix && isAskMode && (
+                  <button
+                    type="button"
+                    onClick={onPlanFix}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#16233A]/60 hover:bg-[#1D2E4A]/70 border border-[#82B9FF]/40 text-[11px] font-semibold text-[#82B9FF] transition-all cursor-pointer"
+                    title="Turn this answer into a Plan-mode task and open the full implementation plan"
+                  >
+                    <GitPullRequest size={12} />
+                    <span>Plan a fix</span>
+                  </button>
+                )}
               </div>
             </motion.div>
           );
@@ -231,9 +299,14 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
       </AnimatePresence>
 
       {/* Inline live execution progress (Codex-style, in the conversation) */}
-      {(isAgentRunning || liveActivities.length > 0) && (
+      {(isAgentRunning || liveActivities.length > 0 || streamingText.length > 0) && (
         <div ref={bottomRef} className="flex flex-col">
-          <LiveProgress agentState={agentState} liveActivities={liveActivities} />
+          <LiveProgress
+            agentState={agentState}
+            liveActivities={liveActivities}
+            startedAtMs={runStartedAt}
+            streamingText={streamingText}
+          />
         </div>
       )}
 

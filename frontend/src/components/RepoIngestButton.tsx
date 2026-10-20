@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { FolderInput, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
-import { api } from '../api/client';
+import { api, friendlyError } from '../api/client';
 import { openDirectoryPicker, walkRepoFiles } from '../api/repoWalk';
 
 interface RepoIngestButtonProps {
@@ -26,7 +26,7 @@ export const RepoIngestButton: React.FC<RepoIngestButtonProps> = ({ taskId, comp
       const resp = await api.ingestRepo(taskId, walked);
       setResult({ ok: true, text: `Ingested ${resp.files_ingested} files` });
     } catch (err) {
-      setResult({ ok: false, text: err instanceof Error ? err.message : String(err) });
+      setResult({ ok: false, text: friendlyError(err) });
     } finally {
       setBusy(false);
     }

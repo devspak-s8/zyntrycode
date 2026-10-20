@@ -27,7 +27,7 @@ export const ConstitutionView: React.FC = () => {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
-      className="px-6 sm:px-10 md:px-16 lg:px-20 xl:px-24 py-8 sm:py-10 space-y-8 sm:space-y-10 w-full pb-28"
+      className="px-4 sm:px-10 md:px-16 lg:px-20 xl:px-24 py-8 sm:py-10 space-y-8 sm:space-y-10 w-full pb-28"
     >
       {/* Title & Mode Switcher */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-white/8">

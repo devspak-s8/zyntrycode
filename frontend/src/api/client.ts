@@ -8,7 +8,7 @@
  *
  * Configure the backend in the UI (BackendBadge) or directly:
  *   localStorage.setItem('zyntry.backendUrl', 'http://localhost:8787')
- *   localStorage.setItem('zyntry.apiToken', '')
+ *   sessionStorage.setItem('zyntry.apiToken', '')
  */
 
 export interface BackendConfig {
@@ -36,17 +36,42 @@ function envBackendUrl(): string {
 export function getBackendConfig(): BackendConfig {
   const stored = localStorage.getItem('zyntry.backendUrl');
   const backendUrl = (stored && stored.trim() ? stored : envBackendUrl() || DEFAULT_BACKEND_URL).trim();
-  const apiToken = localStorage.getItem('zyntry.apiToken') || '';
+  const apiToken = sessionStorage.getItem('zyntry.apiToken') || '';
   return { backendUrl, apiToken };
 }
 
 export function setBackendConfig(config: BackendConfig): void {
+  const parsed = new URL(config.backendUrl);
+  const local = ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname);
+  if (parsed.protocol !== 'https:' && !(local && parsed.protocol === 'http:')) {
+    throw new Error('Backend URL must use HTTPS except for localhost development');
+  }
   localStorage.setItem('zyntry.backendUrl', config.backendUrl);
-  localStorage.setItem('zyntry.apiToken', config.apiToken);
+  sessionStorage.setItem('zyntry.apiToken', config.apiToken);
 }
 
 export function isBackendConfigured(): boolean {
   return getBackendConfig().backendUrl.length > 0;
+}
+
+/**
+ * Sanitize an error for display. Users should see a short, safe message —
+ * never stack traces, URLs, tokens, keys, IPs, or emails.
+ */
+export function friendlyError(err: unknown): string {
+  let text = err instanceof Error ? err.message : String(err);
+  if (!text || !text.trim()) return 'Something went wrong';
+  text = text.replace(/\s+/g, ' ').trim();
+  text = text.replace(/\bsk-[A-Za-z0-9_\-]{8,}\b/gi, '[redacted]');
+  text = text.replace(/Bearer\s+\S+/gi, '[redacted]');
+  text = text.replace(/https?:\/\/\S+/gi, '[url]');
+  text = text.replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, '[email]');
+  text = text.replace(/\b\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?\b/g, '[host]');
+  text = text.replace(/\b[A-Za-z]:\\[^\s,;]*/g, '[path]');
+  if (/failed to fetch/i.test(text)) return 'Backend is unreachable — check that it is running.';
+  const limit = 160;
+  const out = text.length > limit ? `${text.slice(0, limit)}…` : text;
+  return out || 'Something went wrong';
 }
 
 // ---------------------------------------------------------------------------
@@ -65,7 +90,9 @@ export interface BackendStage {
   id: string;
   kind: string;
   title: string;
+  description?: string;
   status: string;
+  dependencies?: string[];
   assigned_model?: string;
   verification_types?: string[];
   verification_reports?: { tool: string; status: string; duration_ms?: number | null }[];
@@ -186,7 +213,7 @@ async function request<T>(
 }
 
 export const api = {
-  health: () => request<{ status: string; providers: { configured: string[] } }>('GET', '/health'),
+  health: () => request<{ status: string; providers: { configured: string[] }; workflow?: { available: boolean } }>('GET', '/health'),
   models: () => request<{ models: unknown[] }>('GET', '/models'),
   createTask: (prompt: string, constraints?: Record<string, unknown>) =>
     request<CreateTaskResponse>('POST', '/tasks', {
@@ -194,9 +221,75 @@ export const api = {
       constraints: constraints ?? {},
     }),
   getTask: (taskId: string) =>
-    request<{ task: BackendTask; plan: { id: string; summary: string; stages: BackendStage[] } | null }>(
+    request<{
+      task: BackendTask;
+      plan: { id: string; summary: string; stages: BackendStage[] } | null;
+      ci?: { task_id: string; status: string; url?: string | null; detail?: string | null; updated_at: string } | null;
+    }>('GET', `/tasks/${taskId}`),
+  sendTaskMessage: (taskId: string, message: string) =>
+    request<{ task_id: string; status: string; message: string }>(
+      'POST',
+      `/tasks/${taskId}/message`,
+      { message }
+    ),
+  updateTaskConstraints: (taskId: string, constraints: Record<string, unknown>) =>
+    request<{ task_id: string; constraints: Record<string, unknown> }>(
+      'POST',
+      `/tasks/${taskId}/constraints`,
+      { constraints }
+    ),
+  retryStages: (taskId: string, stageIds: string[]) =>
+    request<BackendSummary>('POST', `/tasks/${taskId}/retry`, { stage_ids: stageIds }),
+  rollbackTask: (taskId: string, paths?: string[]) =>
+    request<{
+      task_id: string;
+      workspace_id: string;
+      tool_request: { id: string; tool: string; status: string };
+      paths: string[];
+    }>('POST', `/tasks/${taskId}/rollback`, paths && paths.length > 0 ? { paths } : {}),
+  getRepoFiles: (taskId: string) =>
+    request<{ files: { path: string; language?: string | null; size?: number; content?: string | null }[] }>(
       'GET',
-      `/tasks/${taskId}`
+      `/tasks/${taskId}/repo`
+    ),
+  semanticStatus: (workspaceId: string) =>
+    request<{ workspace_id: string; chunks: number; indexed: boolean }>(
+      'GET',
+      `/workspaces/${workspaceId}/semantic/status`
+    ),
+  semanticIndex: (workspaceId: string) =>
+    request<{ workspace_id: string; files: number; chunks: number }>(
+      'POST',
+      `/workspaces/${workspaceId}/semantic/index`
+    ),
+  semanticSearch: (workspaceId: string, query: string, topK = 6) =>
+    request<{
+      workspace_id: string;
+      query: string;
+      results: { path: string; start_line: number; end_line: number; content: string; score: number }[];
+    }>('POST', `/workspaces/${workspaceId}/semantic/search`, { query, top_k: topK }),
+  getRepoRules: (workspaceId: string) =>
+    request<{ workspace_id: string; rules: { name: string; kind: string; spec: string; enabled: boolean }[] }>(
+      'GET',
+      `/workspaces/${workspaceId}/rules`
+    ),
+  setRepoRules: (workspaceId: string, rules: { name: string; kind: string; spec: string; enabled: boolean }[]) =>
+    request<{ workspace_id: string; rules: unknown[] }>(
+      'PUT',
+      `/workspaces/${workspaceId}/rules`,
+      { rules }
+    ),
+  listWorkers: () =>
+    request<{ workers: { id: string; name?: string; last_heartbeat?: string; capabilities?: string[] }[] }>(
+      'GET',
+      '/workers'
+    ),
+  attachWorkspace: (workspaceId: string, taskId: string) =>
+    request<BackendWorkspace>('POST', `/workspaces/${workspaceId}/attach`, { task_id: taskId }),
+  executeTaskWorkflow: (taskId: string) =>
+    request<{ mode: string; workflow_instance_id: string; task_id: string }>(
+      'POST',
+      `/tasks/${taskId}/execute?mode=workflow`
     ),
   approveTask: (taskId: string, autoExecute = true) =>
     request<Record<string, unknown>>('POST', `/tasks/${taskId}/approve`, {
@@ -350,6 +443,8 @@ export function mapPlanSteps(stages: BackendStage[]): TaskPlanStep[] {
     label: s.title || s.kind,
     status: STAGE_STATUS_TO_STEP[s.status] ?? 'pending',
     detail: s.kind,
+    description: s.description,
+    dependencies: s.dependencies,
   }));
 }
 

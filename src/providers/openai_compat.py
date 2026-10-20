@@ -72,7 +72,7 @@ class OpenAICompatProvider(Provider):
                     resp = client.post(f"{base}/chat/completions", json=payload, headers=headers)
                 if resp.status_code >= 400:
                     return LLMResult(model=model, provider=self.name,
-                                     error=f"provider returned {resp.status_code}: {resp.text[:500]}")
+                                     error=f"provider returned {resp.status_code}")
                 data = resp.json()
                 choice = data["choices"][0]["message"]
                 text = choice.get("content") or ""
@@ -146,7 +146,7 @@ class OpenAICompatProvider(Provider):
                             resp.read()
                             return LLMResult(
                                 text="".join(parts), model=model, provider=self.name,
-                                error=f"provider returned {resp.status_code}: {resp.text[:500]}",
+                                error=f"provider returned {resp.status_code}",
                                 raw=events,
                             )
 

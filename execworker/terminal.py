@@ -13,7 +13,10 @@ import signal
 import time
 import uuid
 
+from execworker.security import parse_command, safe_child_env
+
 _SESSIONS: dict[str, dict] = {}
+_MAX_BUFFER = 1_000_000
 
 
 async def _reader_loop(session: dict) -> None:
@@ -22,7 +25,7 @@ async def _reader_loop(session: dict) -> None:
             data = await asyncio.to_thread(os.read, session["fd"], 4096)
             if not data:
                 break
-            session["buffer"] += data.decode("utf-8", errors="replace")
+            session["buffer"] = (session["buffer"] + data.decode("utf-8", errors="replace"))[-_MAX_BUFFER:]
     except (OSError, ValueError):
         pass
     finally:
@@ -40,22 +43,22 @@ def _kill_proc(proc) -> None:
 
 
 async def start_session(*, cwd: str, command: str | None = None,
-                        cols: int = 120, rows: int = 40, env: dict | None = None) -> dict:
+                        cols: int = 120, rows: int = 40, env: dict | None = None,
+                        owner: str | None = None) -> dict:
     """Start an interactive terminal session. Returns {session_id, pid, pty: bool}."""
     session_id = uuid.uuid4().hex[:12]
-    merged_env = dict(os.environ)
-    if env:
-        merged_env.update({str(k): str(v) for k, v in env.items()})
+    merged_env = safe_child_env(env)
 
-    shell = command or ("cmd" if os.name == "nt" else "bash")
+    argv = parse_command(command) if command else (["cmd"] if os.name == "nt" else ["bash"])
     if os.name == "nt":
-        proc = await asyncio.create_subprocess_shell(
-            shell, cwd=cwd, env=merged_env,
+        proc = await asyncio.create_subprocess_exec(
+            *argv, cwd=cwd, env=merged_env,
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT)
         reader_fd = None
-        session = {"id": session_id, "proc": proc, "fd": None, "buffer": "",
-                   "exited": False, "pty": False, "read_pos": 0}
+        session = {"id": session_id, "owner": owner, "proc": proc, "fd": None,
+                   "buffer": "", "exited": False, "pty": False, "read_pos": 0,
+                   "created_at": time.time()}
         _SESSIONS[session_id] = session
         asyncio.create_task(_pipe_reader(session))
         return {"session_id": session_id, "pid": proc.pid, "pty": False}
@@ -64,11 +67,12 @@ async def start_session(*, cwd: str, command: str | None = None,
 
     master, slave = pty.openpty()
     proc = await asyncio.create_subprocess_exec(
-        shell, cwd=cwd, env=merged_env, stdin=slave, stdout=slave, stderr=slave,
+        *argv, cwd=cwd, env=merged_env, stdin=slave, stdout=slave, stderr=slave,
         start_new_session=True)
     os.close(slave)
-    session = {"id": session_id, "proc": proc, "fd": master, "buffer": "",
-               "exited": False, "pty": True, "read_pos": 0}
+    session = {"id": session_id, "owner": owner, "proc": proc, "fd": master,
+               "buffer": "", "exited": False, "pty": True, "read_pos": 0,
+               "created_at": time.time()}
     _SESSIONS[session_id] = session
     asyncio.create_task(_reader_loop(session))
     try:
@@ -87,22 +91,30 @@ async def _pipe_reader(session: dict) -> None:
             data = await proc.stdout.readline() if proc.stdout else b""
             if not data:
                 break
-            session["buffer"] += data.decode("utf-8", errors="replace")
+            session["buffer"] = (session["buffer"] + data.decode("utf-8", errors="replace"))[-_MAX_BUFFER:]
     except (ValueError, OSError):
         pass
     finally:
         session["exited"] = True
 
 
-def _get(session_id: str) -> dict:
+def _get(session_id: str, owner: str | None = None) -> dict:
     session = _SESSIONS.get(session_id)
     if session is None:
         raise ValueError(f"unknown terminal session: {session_id}")
+    if owner is not None and session.get("owner") != owner:
+        raise ValueError("terminal session does not belong to this workspace")
+    if time.time() - session.get("created_at", time.time()) > 3600:
+        _SESSIONS.pop(session_id, None)
+        _kill_proc(session["proc"])
+        raise ValueError("terminal session expired")
     return session
 
 
-async def write_input(session_id: str, data: str) -> dict:
-    session = _get(session_id)
+async def write_input(session_id: str, data: str, owner: str | None = None) -> dict:
+    if len(data) > 64 * 1024:
+        raise ValueError("terminal input is too large")
+    session = _get(session_id, owner)
     proc = session["proc"]
     if proc.stdin is None or proc.returncode is not None:
         raise ValueError("session is not running")
@@ -114,15 +126,17 @@ async def write_input(session_id: str, data: str) -> dict:
     return {"written": len(data)}
 
 
-async def read_output(session_id: str) -> dict:
-    session = _get(session_id)
+async def read_output(session_id: str, owner: str | None = None) -> dict:
+    session = _get(session_id, owner)
     output = session["buffer"][session["read_pos"]:]
     session["read_pos"] = len(session["buffer"])
     return {"output": output, "exited": bool(session["exited"])}
 
 
-async def resize(session_id: str, cols: int, rows: int) -> dict:
-    session = _get(session_id)
+async def resize(session_id: str, cols: int, rows: int, owner: str | None = None) -> dict:
+    if not (1 <= cols <= 500 and 1 <= rows <= 200):
+        raise ValueError("terminal dimensions are out of range")
+    session = _get(session_id, owner)
     if session.get("fd") is not None:
         try:
             import fcntl
@@ -133,8 +147,14 @@ async def resize(session_id: str, cols: int, rows: int) -> dict:
     return {"resized": True}
 
 
-async def stop_session(session_id: str) -> dict:
-    session = _SESSIONS.pop(session_id, None)
+async def stop_session(session_id: str, owner: str | None = None) -> dict:
+    if session_id not in _SESSIONS:
+        return {"error": f"unknown terminal session: {session_id}"}
+    try:
+        session = _get(session_id, owner)
+    except ValueError as exc:
+        return {"error": str(exc)}
+    _SESSIONS.pop(session_id, None)
     if session is None:
         return {"error": f"unknown terminal session: {session_id}"}
     _kill_proc(session["proc"])

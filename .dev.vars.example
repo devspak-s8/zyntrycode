@@ -9,12 +9,15 @@ OPENAI_API_KEY=sk-your-key-here
 # Anthropic
 ANTHROPIC_API_KEY=sk-ant-your-key-here
 
-# Optional: require "Authorization: Bearer <token>" on all routes except /health
-# API_TOKEN=change-me
+# Required outside explicit local-insecure development.
+API_TOKEN=change-me
+RUNNER_TOKEN=change-me-runner
+SECRET_ENCRYPTION_KEY=generate-a-fernet-key
+CI_WEBHOOK_SECRET=change-me-webhook
 
 # Optional overrides (defaults shown)
 # PROVIDER_ORDER=openai,anthropic,workers_ai
 # MAX_ATTEMPTS_PER_STAGE=2
 # DEFAULT_BUDGET_USD=5.0
-# ALLOWED_ORIGINS=*
+ALLOWED_ORIGINS=http://localhost:5173
 # RATE_LIMIT_PER_MINUTE=120

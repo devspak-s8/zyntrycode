@@ -9,7 +9,7 @@ export type AgentState =
   | 'failed'
   | 'escalated';
 
-export type WorkspaceMode = 'ask' | 'edit' | 'agent';
+export type WorkspaceMode = 'ask' | 'edit' | 'plan' | 'agent';
 
 export type RoutingMode = 'auto' | 'fast' | 'balanced' | 'quality';
 
@@ -50,6 +50,8 @@ export interface TaskPlanStep {
   label: string;
   status: StepStatus;
   detail?: string;
+  description?: string;
+  dependencies?: string[];
   durationMs?: number;
 }
 
@@ -190,6 +192,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: string;
+  durationSeconds?: number;
   attachedFiles?: string[];
   planSteps?: TaskPlanStep[];
   toolActivities?: ToolActivityItem[];
@@ -213,6 +216,10 @@ export interface TaskSession {
   backendTaskId?: string;
   backendExecutionId?: string;
   backendWorkspaceId?: string;
+  cloudExecution?: boolean;
+  planPendingReview?: boolean;
+  planSummary?: string;
+  ciStatus?: { status: string; url?: string | null; detail?: string | null } | null;
   messages: ChatMessage[];
   diffFiles: DiffFile[];
   verificationChecks: VerificationCheck[];

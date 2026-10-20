@@ -1,17 +1,28 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AgentState, ToolActivityItem } from '../types';
-import { Loader2, Check, X, Terminal, Cpu, SearchCheck } from 'lucide-react';
+import { Loader2, Check, X, Terminal, Cpu, SearchCheck, Timer } from 'lucide-react';
 
 /**
  * Live execution progress rendered directly on the page (no card) while the
- * agent runs — Codex/OpenCode style: a plain animated status line followed by
- * a raw terminal feed of what the agent is doing right now.
+ * agent runs — Codex/OpenCode style: a plain animated status line with a
+ * ticking duration timer, followed by a raw terminal feed of what the agent
+ * is doing right now.
  */
 
 interface LiveProgressProps {
   agentState: AgentState;
   liveActivities: ToolActivityItem[];
+  startedAtMs?: number | null;
+  streamingText?: string;
+}
+
+function formatDuration(totalSeconds: number): string {
+  const s = Math.max(0, Math.round(totalSeconds));
+  const minutes = Math.floor(s / 60);
+  const seconds = s % 60;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
 }
 
 const STATE_LABELS: Record<string, string> = {
@@ -24,8 +35,21 @@ const STATE_LABELS: Record<string, string> = {
 export const LiveProgress: React.FC<LiveProgressProps> = ({
   agentState,
   liveActivities,
+  startedAtMs = null,
+  streamingText = '',
 }) => {
   const label = STATE_LABELS[agentState] ?? 'Agent is working…';
+
+  // Ticking wall-clock timer while the agent runs.
+  const [now, setNow] = useState<number>(Date.now());
+  useEffect(() => {
+    if (startedAtMs == null) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [startedAtMs]);
+
+  const elapsedSeconds =
+    startedAtMs != null ? Math.max(0, Math.floor((now - startedAtMs) / 1000)) : null;
 
   const visible = liveActivities.slice(0, 12);
 
@@ -42,10 +66,28 @@ export const LiveProgress: React.FC<LiveProgressProps> = ({
         <span className="text-xs font-semibold text-[#F2F6F4] tracking-tight">
           {label}
         </span>
+        {elapsedSeconds !== null && (
+          <span className="flex items-center gap-1 font-mono text-[10px] text-[#6F7B77] tabular-nums">
+            <Timer size={10} />
+            {formatDuration(elapsedSeconds)}
+          </span>
+        )}
         <span className="font-mono text-[10px] text-[#6F7B77] tabular-nums">
           {liveActivities.length} event{liveActivities.length === 1 ? '' : 's'}
         </span>
       </div>
+
+      {/* Live model output streaming in, Codex-style */}
+      {streamingText.length > 0 && (
+        <div className="px-1">
+          <div className="rounded-xl bg-[#0F141A]/80 border border-white/8 px-3.5 py-2.5 max-h-48 overflow-y-auto scroll-smooth">
+            <div className="text-[11px] font-mono leading-relaxed text-[#C9D4D0] whitespace-pre-wrap break-words">
+              {streamingText}
+              <span className="inline-block w-1.5 h-3.5 bg-[#82B9FF] ml-0.5 align-middle animate-pulse" />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Live feed (newest first, like a terminal), directly on the page — no fixed height, no scroll bar */}
       <div>
@@ -79,8 +121,9 @@ export const LiveProgress: React.FC<LiveProgressProps> = ({
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.18 }}
-                  className="flex items-center justify-between gap-3 py-1 px-1.5 text-[#A3AEAA]"
+                  className="py-1 px-1.5 text-[#A3AEAA]"
                 >
+                  {/* Stage text on top */}
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div className="w-4 flex justify-center shrink-0">
                       {act.status === 'running' && (
@@ -102,11 +145,19 @@ export const LiveProgress: React.FC<LiveProgressProps> = ({
                         <Cpu size={11} className="text-[#6F7B77]" />
                       )}
                     </div>
-                    <span className="truncate text-[#F2F6F4]">{act.name}</span>
+                    <span className="text-[#F2F6F4] leading-relaxed">{act.name}</span>
                   </div>
-                  <span className="shrink-0 text-[10px] text-[#6F7B77] tabular-nums">
-                    {act.timestamp}
-                  </span>
+
+                  {/* Timer below the stage text */}
+                  <div className="flex items-center gap-2 pl-[2.4rem] text-[10px] text-[#6F7B77] tabular-nums">
+                    {act.durationMs != null && (
+                      <span className="flex items-center gap-0.5">
+                        <Timer size={9} />
+                        {formatDuration(act.durationMs / 1000)}
+                      </span>
+                    )}
+                    <span>{act.timestamp}</span>
+                  </div>
                 </motion.div>
               ))}
             </AnimatePresence>

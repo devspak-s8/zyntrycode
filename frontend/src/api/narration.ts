@@ -55,6 +55,17 @@ export function narrateEvent(event: RawEvent): string | null {
   switch (type) {
     case 'execution_started':
       return 'Kicking off the execution loop…';
+    case 'routing_policy': {
+      const mode = String(event.data?.mode ?? 'agent');
+      const routingMode = String(event.data?.routing_mode ?? 'auto');
+      const deep = Boolean(event.data?.deep_reasoning);
+      const bits: string[] = [];
+      if (mode === 'ask') bits.push('read-only ask mode — no code will be written');
+      else if (mode === 'edit') bits.push('targeted edit mode');
+      if (routingMode === 'quality' || deep) bits.push('reasoning-tier models for every stage');
+      else if (routingMode === 'fast') bits.push('fastest capable models');
+      return bits.length ? `Routing policy applied: ${bits.join(', ')}.` : null;
+    }
     case 'stage_started': {
       if (kind === 'understand') return STAGE_KIND_STARTED.understand;
       return STAGE_KIND_STARTED[kind] ?? `Working on: ${message.replace(/^Stage:\s*/, '')}…`;
@@ -63,8 +74,12 @@ export function narrateEvent(event: RawEvent): string | null {
       if (kind === 'understand') return STAGE_KIND_DONE.understand;
       return STAGE_KIND_DONE[kind] ?? message;
     }
-    case 'stage_failed':
-      return `This step failed: ${message}`;
+    case 'stage_failed': {
+      const k = kindOf(event);
+      return k
+        ? `The ${k.replace(/_/g, ' ')} stage failed — ${message}`
+        : `This step failed: ${message}`;
+    }
     case 'stage_skipped':
       return message;
     case 'stage_blocked':

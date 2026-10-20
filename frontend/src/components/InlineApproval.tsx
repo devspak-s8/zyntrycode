@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { DiffFile, TaskPlanStep } from '../types';
 import {
@@ -9,6 +9,8 @@ import {
   ShieldCheck,
   Loader2,
   ListChecks,
+  Square,
+  CheckSquare,
 } from 'lucide-react';
 
 /**
@@ -27,7 +29,8 @@ interface InlineApprovalProps {
   files: DiffFile[];
   planSteps?: TaskPlanStep[];
   isSubmitting?: boolean;
-  onApprove: () => void;
+  /** apply-changes: the set of file paths the developer authorized. */
+  onApprove: (approvedPaths: string[]) => void;
   onReject: () => void;
   onDismiss?: () => void;
 }
@@ -42,11 +45,31 @@ export const InlineApproval: React.FC<InlineApprovalProps> = ({
   onReject,
   onDismiss,
 }) => {
+  // Per-file authorization: every file starts selected; the developer can
+  // uncheck the ones they do not want applied.
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(
+    () => new Set(files.map((f) => f.path))
+  );
+
+  useEffect(() => {
+    setSelectedPaths(new Set(files.map((f) => f.path)));
+  }, [files]);
+
   if (!isOpen) return null;
 
   const totalAdded = files.reduce((acc, f) => acc + f.addedCount, 0);
   const totalRemoved = files.reduce((acc, f) => acc + f.removedCount, 0);
   const isPreExecution = variant === 'pre-execution';
+  const selectedCount = isPreExecution ? files.length : selectedPaths.size;
+
+  const toggleFile = (path: string) => {
+    setSelectedPaths((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  };
 
   return (
     <div className="absolute bottom-4 sm:bottom-6 left-0 right-0 px-3.5 sm:px-6 pointer-events-none z-30 flex justify-center">
@@ -123,9 +146,25 @@ export const InlineApproval: React.FC<InlineApprovalProps> = ({
                   key={file.path}
                   className="flex items-center justify-between font-mono text-[11px] py-1 px-1.5 rounded-md hover:bg-white/4"
                 >
-                  <div className="flex items-center gap-2 text-[#F2F6F4] truncate">
+                  <div className="flex items-center gap-2 text-[#F2F6F4] truncate min-w-0">
+                    {!isPreExecution && (
+                      <button
+                        type="button"
+                        onClick={() => toggleFile(file.path)}
+                        className="shrink-0 cursor-pointer"
+                        title={selectedPaths.has(file.path) ? 'Exclude this file' : 'Include this file'}
+                      >
+                        {selectedPaths.has(file.path) ? (
+                          <CheckSquare size={13} className="text-[#55E6A5]" />
+                        ) : (
+                          <Square size={13} className="text-[#6F7B77]" />
+                        )}
+                      </button>
+                    )}
                     <FileCode size={12} className="text-[#82B9FF] shrink-0" />
-                    <span className="truncate">{file.path}</span>
+                    <span className={`truncate ${!isPreExecution && !selectedPaths.has(file.path) ? 'line-through text-[#6F7B77]' : ''}`}>
+                      {file.path}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2 shrink-0 text-[10px]">
                     {file.status === 'created' && (
@@ -161,8 +200,8 @@ export const InlineApproval: React.FC<InlineApprovalProps> = ({
             type="button"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
-            onClick={onApprove}
-            disabled={isSubmitting}
+            onClick={() => onApprove(Array.from(selectedPaths))}
+            disabled={isSubmitting || (!isPreExecution && selectedCount === 0)}
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#173D30] to-[#1F4E3E] hover:from-[#1F4E3E] hover:to-[#26624E] text-[#55E6A5] border border-[#2D9E70] rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-lg glow-accent disabled:opacity-60"
           >
             {isSubmitting ? (
@@ -175,7 +214,7 @@ export const InlineApproval: React.FC<InlineApprovalProps> = ({
                 ? 'Working…'
                 : isPreExecution
                 ? 'Approve & Execute'
-                : 'Authorize & Apply'}
+                : `Authorize ${selectedCount} file${selectedCount === 1 ? '' : 's'}`}
             </span>
           </motion.button>
 

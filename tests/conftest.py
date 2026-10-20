@@ -24,6 +24,13 @@ def pytest_configure(config) -> None:
         base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
         basetemp = os.path.join(base, "Temp", "opencode", "pytest-tmp")
     config.option.basetemp = basetemp
+    # Tests deliberately run in explicit local-insecure mode. Production and
+    # normal local ASGI runs fail closed unless this flag is set by the user.
+    os.environ.setdefault("ALLOW_INSECURE_LOCAL", "true")
+    os.environ.setdefault(
+        "SECRET_ENCRYPTION_KEY",
+        "2c3hYw6mP9vQ8xZ4nB7sD1fG5jK0rT3uV6yA9cE2hL8=",
+    )
 
 
 async def _migrate(db: SQLiteDatabase) -> None:

@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { X, GitPullRequest, Loader2, CheckCircle2, AlertCircle, ShieldAlert } from 'lucide-react';
-import { api, BackendToolRequest } from '../api/client';
+import { api, BackendToolRequest, friendlyError } from '../api/client';
 
 interface DeliverPanelProps {
   isOpen: boolean;
   workspaceId?: string;
   title: string;
   onClose: () => void;
+  onDelivered?: (info: { workspace_id: string; title: string }) => void;
 }
 
 export const DeliverPanel: React.FC<DeliverPanelProps> = ({
@@ -15,6 +16,7 @@ export const DeliverPanel: React.FC<DeliverPanelProps> = ({
   workspaceId,
   title,
   onClose,
+  onDelivered,
 }) => {
   const [requests, setRequests] = useState<BackendToolRequest[]>([]);
   const [busy, setBusy] = useState(false);
@@ -33,8 +35,9 @@ export const DeliverPanel: React.FC<DeliverPanelProps> = ({
         ok: true,
         text: 'Delivery queued: commit (immediate), push + PR awaiting approval.',
       });
+      onDelivered?.({ workspace_id: workspaceId, title });
     } catch (err) {
-      setMessage({ ok: false, text: err instanceof Error ? err.message : String(err) });
+      setMessage({ ok: false, text: friendlyError(err) });
     } finally {
       setBusy(false);
     }
@@ -57,7 +60,7 @@ export const DeliverPanel: React.FC<DeliverPanelProps> = ({
       await api.approveToolRequest(workspaceId, requestId);
       await refresh();
     } catch (err) {
-      setMessage({ ok: false, text: err instanceof Error ? err.message : String(err) });
+      setMessage({ ok: false, text: friendlyError(err) });
     } finally {
       setBusy(false);
     }

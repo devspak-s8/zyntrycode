@@ -29,7 +29,7 @@ export const EmptyState: React.FC<EmptyStateProps> = () => {
 
       {/* Supporting text */}
       <p className="text-xs sm:text-sm text-[#A3AEAA] max-w-lg mb-8 leading-relaxed">
-        Understand codebase relationships, decompose stages, route models adaptively, and verify deterministically before writing to disk.
+        Understands your repo, routes each stage to a model, and verifies before writing.
       </p>
     </div>
   );

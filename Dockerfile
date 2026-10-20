@@ -18,11 +18,17 @@ COPY execworker ./execworker
 
 RUN pip install --no-cache-dir .
 
+RUN addgroup --system zyntry && adduser --system --ingroup zyntry zyntry \
+    && mkdir -p /workspaces \
+    && chown -R zyntry:zyntry /app /workspaces
+
 # Workspace checkouts live here; mount a volume to persist them.
 ENV ZYNTRY_WORKSPACES_DIR=/workspaces
 
 ENV ZYNTRY_CPU_LIMIT_SECONDS=120 \
     ZYNTRY_MEM_LIMIT_MB=1024
+
+USER zyntry
 
 ENTRYPOINT ["python", "-m", "execworker.main"]
 CMD ["--backend", "http://host.docker.internal:8787"]
