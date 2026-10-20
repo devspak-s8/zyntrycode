@@ -12,7 +12,7 @@
 		{
 			"binding": "DB",
 			"database_name": "zyntry-code",
-			"database_id": "00000000-0000-0000-0000-000000000000",
+			"database_id": "22606480-f851-4c6c-a8ef-c043cce2b5f0",
 			"migrations_dir": "migrations"
 		}
 	],

@@ -28,7 +28,7 @@
       "properties": {
         "zyntry.backendUrl": {
           "type": "string",
-          "default": "http://localhost:8787",
+          "default": "https://zyntry-code.devspark015.workers.dev",
           "description": "URL of the Zyntry Code backend (Cloudflare Worker or local dev server)."
         },
         "zyntry.apiToken": {

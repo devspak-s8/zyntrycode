@@ -17,11 +17,11 @@ export interface BackendConfig {
 }
 
 /**
- * Default backend URL: connects out of the box. Override via
+ * Default backend URL: the deployed Cloudflare Worker. Override via
  * VITE_BACKEND_URL in a .env file, or by storing 'zyntry.backendUrl' in
  * localStorage (the badge UI does this).
  */
-const DEFAULT_BACKEND_URL = 'http://localhost:8787';
+const DEFAULT_BACKEND_URL = 'https://zyntry-code.devspark015.workers.dev';
 
 function envBackendUrl(): string {
   try {
