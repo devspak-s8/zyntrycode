@@ -2,26 +2,26 @@ const footerLinks = [
   {
     title: "Platform",
     links: [
-      { label: "How it works", href: "#walkthrough" },
-      { label: "Features", href: "#features" },
-      { label: "Environments", href: "#environments" },
+      { label: "How it works", href: "#/how-it-works" },
+      { label: "Features", href: "#/features" },
+      { label: "Environments", href: "#/environments" },
     ],
   },
   {
     title: "Resources",
     links: [
-      { label: "Documentation", href: "https://github.com/devspak-s8/Zyntry-Code" },
-      { label: "Model routing guide", href: "#features" },
-      { label: "VS Code extension", href: "https://github.com/devspak-s8/Zyntry-Code/tree/main/vscode-ext" },
+      { label: "Documentation", href: "#/docs" },
+      { label: "Model routing guide", href: "#/routing" },
+      { label: "VS Code extension", href: "#/extension" },
     ],
   },
   {
     title: "Company",
     links: [
-      { label: "Get started", href: "#cta" },
-      { label: "Sign in", href: "#cta" },
-      { label: "Contact", href: "https://github.com/devspak-s8/Zyntry-Code/issues" },
-      { label: "Security", href: "https://github.com/devspak-s8/Zyntry-Code" },
+      { label: "Get started", href: "#/get-started" },
+      { label: "Sign in", href: "#/sign-in" },
+      { label: "Contact", href: "#/contact" },
+      { label: "Security", href: "#/security" },
     ],
   },
 ];
@@ -160,7 +160,7 @@ export function Footer() {
             >
               Terms
             </a>
-            <a href="#" style={{ color: "var(--text-muted)", transition: "color var(--transition)" }}
+            <a href="#/security" style={{ color: "var(--text-muted)", transition: "color var(--transition)" }}
               onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")}
               onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
             >
