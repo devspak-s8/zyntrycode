@@ -49,8 +49,8 @@ export function Navbar() {
         {/* Right: CTA + mobile toggle */}
         <div className="nav-right">
           <div className="nav-actions" style={{ display: "flex" }}>
-            <Button variant="white" pill size="md" href="#/get-started">
-              Get started
+            <Button variant="white" pill size="md" href="https://marketplace.visualstudio.com/items?itemName=ZyntryCode.zyntry-code" target="_blank" rel="noreferrer noopener">
+              Get extension
             </Button>
           </div>
           <button
@@ -88,8 +88,8 @@ export function Navbar() {
             </a>
           ))}
           <div style={{ marginTop: "10px" }}>
-            <Button variant="white" pill size="md" href="#/get-started">
-              Get started
+            <Button variant="white" pill size="md" href="https://marketplace.visualstudio.com/items?itemName=ZyntryCode.zyntry-code" target="_blank" rel="noreferrer noopener">
+              Get extension
             </Button>
           </div>
         </div>

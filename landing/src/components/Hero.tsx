@@ -1,9 +1,9 @@
 import { Button } from "./Button";
 
 const proofPoints = [
-  "VS Code extension",
-  "Remote container workers",
-  "Approval-gated PRs",
+  "Free models included",
+  "Works in your open folder",
+  "Approval-gated changes",
 ];
 
 export function Hero() {
@@ -90,16 +90,27 @@ export function Hero() {
             gap: "13px",
             justifyContent: "center",
             flexWrap: "wrap",
-            marginBottom: "30px",
+            marginBottom: "14px",
           }}
         >
-          <Button variant="primary" size="lg" href="#cta">
-            Start orchestrating
+          <Button variant="primary" size="lg" href="https://marketplace.visualstudio.com/items?itemName=ZyntryCode.zyntry-code" target="_blank" rel="noreferrer noopener">
+            Install for VS Code
           </Button>
           <Button variant="secondary" size="lg" href="#walkthrough">
             See how it works
           </Button>
         </div>
+
+        <p
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: "12px",
+            color: "var(--text-muted)",
+            marginBottom: "18px",
+          }}
+        >
+          Free models included — no key, no setup. Add your own later for premium.
+        </p>
 
         <div
           style={{

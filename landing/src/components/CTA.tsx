@@ -67,11 +67,11 @@ export function CTA() {
             flexWrap: "wrap",
           }}
         >
-          <Button variant="primary" size="lg" href="https://github.com/devspak-s8/Zyntry-Code" target="_blank" rel="noreferrer noopener">
-            Start on GitHub
+          <Button variant="primary" size="lg" href="https://marketplace.visualstudio.com/items?itemName=ZyntryCode.zyntry-code" target="_blank" rel="noreferrer noopener">
+            Install for VS Code
           </Button>
-          <Button variant="secondary" size="lg" href="#walkthrough">
-            See how it works
+          <Button variant="secondary" size="lg" href="https://github.com/devspak-s8/Zyntry-Code" target="_blank" rel="noreferrer noopener">
+            View on GitHub
           </Button>
         </div>
 
@@ -87,9 +87,9 @@ export function CTA() {
             flexWrap: "wrap",
           }}
         >
-          <span>VS Code extension</span>
+          <span>Free models included</span>
           <span style={{ color: "var(--text-faint)" }}>·</span>
-          <span>Remote container workers</span>
+          <span>No key needed to start</span>
           <span style={{ color: "var(--text-faint)" }}>·</span>
           <span>Approval-gated delivery</span>
         </div>
