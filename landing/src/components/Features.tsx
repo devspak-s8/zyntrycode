@@ -4,7 +4,7 @@ const features = [
   {
     icon: RouteIcon,
     title: "Per-stage model routing",
-    body: "Each task stage is routed to the model best matched by capability, risk, cost, and historical failure rate — not just the most powerful model for everything.",
+    body: "Each task stage is routed to the model best matched by capability, risk, cost, and historical failure rate, not just the most powerful model for everything.",
   },
   {
     icon: GraphIcon,
@@ -14,7 +14,7 @@ const features = [
   {
     icon: RetryIcon,
     title: "Verification-driven retries",
-    body: "When verification fails, the system retries — escalating to a stronger model when needed, with structured evidence of what went wrong.",
+    body: "When verification fails, the system retries, escalating to a stronger model when needed, with structured evidence of what went wrong.",
   },
   {
     icon: BudgetIcon,
@@ -29,7 +29,7 @@ const features = [
   {
     icon: TraceIcon,
     title: "Full execution traces",
-    body: "Every run produces a trace: model selection, attempts, latency, cost, verification results, and limitations — auditable end to end.",
+    body: "Every run produces a trace: model selection, attempts, latency, cost, verification results, and limitations, auditable end to end.",
   },
   {
     icon: GateIcon,

@@ -5,7 +5,7 @@ export function GetStarted() {
     <PageShell kicker="Company" title="Get started">
       <PageSection heading="1 · Install">
         <p>
-          Install the Zyntry Code extension in VS Code. It arrives connected — there is
+          Install the Zyntry Code extension in VS Code. It arrives connected; there is
           nothing to configure.
         </p>
       </PageSection>
@@ -21,7 +21,7 @@ export function GetStarted() {
       <PageSection heading="3 · Describe a task">
         <p>
           Run <strong style={{ color: "var(--text-primary)" }}>Zyntry: Create Task</strong> and describe the work in
-          plain language — "add rate limiting to the public API", "fix the token refresh
+          plain language, "add rate limiting to the public API", "fix the token refresh
           race", "add tests for the session store". Choose Run now or Stream to watch it
           live.
         </p>
@@ -37,14 +37,14 @@ export function GetStarted() {
 
       <PageSection heading="5 · Review, then deliver">
         <p>
-          Review the diff and the evidence pack. Deliver when ready — commit runs
+          Review the diff and the evidence pack. Deliver when ready, commit runs
           immediately, push and pull request wait for your approval, and CI reports back
           automatically.
         </p>
       </PageSection>
 
       <Note label="Prefer a plan first?">
-        In the web companion, choose <strong style={{ color: "var(--text-primary)" }}>Plan</strong> mode — the full
+        In the web companion, choose <strong style={{ color: "var(--text-primary)" }}>Plan</strong> mode, the full
         implementation plan opens for review before anything executes.
       </Note>
     </PageShell>

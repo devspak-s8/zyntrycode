@@ -80,7 +80,7 @@ export function Hero() {
           }}
         >
           Coordinate models, execute engineering workflows, and verify software changes
-          with evidence — model intelligence, execution control, and cost-aware
+          with evidence: model intelligence, execution control, and cost-aware
           verification in one workflow.
         </p>
 
@@ -109,7 +109,7 @@ export function Hero() {
             marginBottom: "18px",
           }}
         >
-          Free models included — no key, no setup. Add your own later for premium.
+          Free models included, no key, no setup. Add your own later for premium.
         </p>
 
         <div

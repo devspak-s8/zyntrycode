@@ -20,7 +20,7 @@ export function SecurityPage() {
       <PageSection heading="Secrets at rest">
         <p>
           Workspace secrets (push tokens, API keys) are encrypted before they touch the
-          database with a Fernet key that lives only in Cloudflare secrets — never in the
+          database with a Fernet key that lives only in Cloudflare secrets, never in the
           repository, the extension, or logs. Legacy plaintext values are rejected, not
           read. The extension packages no provider keys and no encryption keys.
         </p>
@@ -37,7 +37,7 @@ export function SecurityPage() {
 
       <PageSection heading="Honest verification">
         <p>
-          A check that could not run is reported as a limitation — never claimed as
+          A check that could not run is reported as a limitation, never claimed as
           passed. Budget limits are enforced before attempts start, and raw errors shown
           in the UI are sanitized (tokens, URLs, emails, IPs, and paths are redacted).
         </p>
@@ -53,7 +53,7 @@ export function SecurityPage() {
 
       <Note label="Reporting:">
         if you find a vulnerability, report it through the repository issues without
-        including live tokens, keys, or customer data — we treat security reports with
+        including live tokens, keys, or customer data, we treat security reports with
         priority.
       </Note>
     </PageShell>

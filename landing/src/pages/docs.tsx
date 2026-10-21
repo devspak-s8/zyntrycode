@@ -11,7 +11,7 @@ export function Docs() {
           <li>Run <strong style={{ color: "var(--text-primary)" }}>Zyntry: Create Task</strong>, describe the work, and choose Run now or Stream.</li>
         </ol>
         <p>
-          That is the whole setup — the extension arrives connected. No keys, no
+          That is the whole setup: the extension arrives connected. No keys, no
           configuration, nothing to copy from a console.
         </p>
       </PageSection>
@@ -28,13 +28,13 @@ export function Docs() {
       <PageSection heading="Review and deliver">
         <p>
           You review changes before they are authorized. Delivery is approval-gated at
-          every dangerous step — commit first, then push and pull request only when you
+          every dangerous step: commit first, then push and pull request only when you
           say so. CI results arrive on the task timeline automatically.
         </p>
       </PageSection>
 
       <Note label="Need help?">
-        Issues and feature requests go through the repository — see the footer or the
+        Issues and feature requests go through the repository; see the footer or the
         extension's output channel for diagnostics.
       </Note>
     </PageShell>

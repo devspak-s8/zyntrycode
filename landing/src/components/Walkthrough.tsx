@@ -5,7 +5,7 @@ const stages = [
   {
     step: "01",
     title: "Task assessment",
-    body: "Zyntry Code analyzes the incoming change request — complexity, risk surface, affected dependencies, and blast radius — to determine what kind of engineering work this is.",
+    body: "Zyntry Code analyzes the incoming change request (complexity, risk surface, affected dependencies, and blast radius) to determine what kind of engineering work this is.",
     artifact: <AssessArtifact />,
   },
   {
@@ -17,7 +17,7 @@ const stages = [
   {
     step: "03",
     title: "Per-stage model routing",
-    body: "Each stage is routed to the model best suited for it — weighted by capability, risk, cost, and historical failure rates for that stage type.",
+    body: "Each stage is routed to the model best suited for it, weighted by capability, risk, cost, and historical failure rates for that stage type.",
     artifact: <RouteArtifact />,
   },
   {
@@ -29,13 +29,13 @@ const stages = [
   {
     step: "05",
     title: "Verification & evidence",
-    body: "Every attempt runs through verification — tests, type checks, security gates. Failures produce structured evidence: what failed, where, and why.",
+    body: "Every attempt runs through verification (tests, type checks, security gates). Failures produce structured evidence: what failed, where, and why.",
     artifact: <VerifyArtifact />,
   },
   {
     step: "06",
     title: "Escalation & delivery",
-    body: "Failed verifications drive retries or escalation to a stronger model. On full pass, changes are delivered as an approval-gated Git artifact — a tracked, reviewable PR.",
+    body: "Failed verifications drive retries or escalation to a stronger model. On full pass, changes are delivered as a tracked, reviewable, approval-gated Git PR.",
     artifact: <DeliverArtifact />,
   },
 ];
@@ -348,7 +348,7 @@ function AssessArtifact() {
           <path d="M12 10 L12 14" />
           <path d="M12 16.5 L12 16.6" />
         </svg>
-        Requires approval gate — risk surface exceeds threshold
+        Requires approval gate (risk surface exceeds threshold)
       </div>
     </ArtifactFrame>
   );
@@ -575,8 +575,8 @@ function ExecuteArtifact() {
   const rows = [
     { t: "0:00", icon: "→", color: "var(--info)", event: "auth-module started (sonnet)" },
     { t: "0:00", icon: "→", color: "var(--info)", event: "session-store started (gpt-4o)" },
-    { t: "0:01", icon: "✓", color: "var(--success)", event: "auth-module complete — 1.2s" },
-    { t: "0:02", icon: "✓", color: "var(--success)", event: "session-store complete — 2.1s" },
+    { t: "0:01", icon: "✓", color: "var(--success)", event: "auth-module complete, 1.2s" },
+    { t: "0:02", icon: "✓", color: "var(--success)", event: "session-store complete, 2.1s" },
     { t: "0:02", icon: "→", color: "var(--info)", event: "middleware started (haiku)" },
     { t: "0:03", icon: "✕", color: "var(--error)", event: "middleware failed verification" },
     { t: "0:03", icon: "↻", color: "var(--warning)", event: "escalating to sonnet" },
@@ -716,7 +716,7 @@ function VerifyArtifact() {
           <path d="M12 16.5 L12 16.6" />
         </svg>
         <span>
-          middleware/csrf.ts:42 — Missing CSRF token validation on POST /api/auth/session.
+          Missing CSRF token validation on POST /api/auth/session (middleware/csrf.ts:42).
           Expected csrfVerify(req) before session.create().
         </span>
       </div>
@@ -730,7 +730,7 @@ function DeliverArtifact() {
   return (
     <ArtifactFrame
       icon={<GitPullIcon />}
-      label="Delivery — approval-gated PR"
+      label="Delivery (approval-gated PR)"
       status={<Badge variant="success" dot>verified</Badge>}
     >
       <div
@@ -766,7 +766,7 @@ function DeliverArtifact() {
             fontWeight: 700,
           }}
         >
-          +142
+          142 added
         </span>
         <span
           style={{
@@ -779,7 +779,7 @@ function DeliverArtifact() {
             fontWeight: 700,
           }}
         >
-          −28
+          28 removed
         </span>
       </div>
       <div
@@ -795,19 +795,19 @@ function DeliverArtifact() {
         }}
       >
         <div style={{ color: "var(--text-muted)", marginBottom: "4px" }}>
-          diff --git a/src/auth/middleware.ts
+          src/auth/middleware.ts
         </div>
         <div style={{ background: "rgba(255,125,125,0.08)", color: "var(--error)", borderRadius: "4px", padding: "0 10px", marginBottom: "2px" }}>
-          -  if (req.method === "POST") {"{"}
+          if (req.method === "POST") {"{"}
         </div>
         <div style={{ background: "rgba(255,125,125,0.08)", color: "var(--error)", borderRadius: "4px", padding: "0 10px", marginBottom: "2px" }}>
           {"    return handleSession(req);"}
         </div>
         <div style={{ background: "rgba(255,125,125,0.08)", color: "var(--error)", borderRadius: "4px", padding: "0 10px", marginBottom: "6px" }}>
-          -  {"}"}
+          {"}"}
         </div>
         <div style={{ background: "rgba(74,222,128,0.08)", color: "var(--success)", borderRadius: "4px", padding: "0 10px", marginBottom: "2px" }}>
-          +  if (req.method === "POST") {"{"}
+          if (req.method === "POST") {"{"}
         </div>
         <div style={{ background: "rgba(74,222,128,0.08)", color: "var(--success)", borderRadius: "4px", padding: "0 10px", marginBottom: "2px" }}>
           {"    const token = csrfVerify(req);"}
@@ -819,7 +819,7 @@ function DeliverArtifact() {
           {"    return handleSession(req);"}
         </div>
         <div style={{ background: "rgba(74,222,128,0.08)", color: "var(--success)", borderRadius: "4px", padding: "0 10px" }}>
-          +  {"}"}
+          {"}"}
         </div>
       </div>
       <div

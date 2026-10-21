@@ -71,7 +71,7 @@ export function Footer() {
                 maxWidth: "280px",
               }}
             >
-              AI engineering orchestration — coordinate models, execute workflows, and verify
+              AI engineering orchestration: coordinate models, execute workflows, and verify
               changes with evidence.
             </p>
           </div>

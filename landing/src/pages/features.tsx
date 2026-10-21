@@ -6,7 +6,7 @@ export function FeaturesPage() {
       <PageSection heading="Repo-first planning">
         <p>
           Attach a folder or ingest your workspace snapshot and the planner works against
-          your actual files — dependency structure, languages, and entry points — instead
+          your actual files (dependency structure, languages, and entry points) instead
           of guessing. Snapshots are capped in size and stripped of sensitive paths.
         </p>
       </PageSection>
@@ -15,7 +15,7 @@ export function FeaturesPage() {
         <p>
           Four tiers of models, matched to the stage's kind and the task's risk level.
           Routing reads historical success rates per stage kind and divides effective
-          cost by reliability — so the cheapest sticker price stops winning when the
+          cost by reliability, so the cheapest sticker price stops winning when the
           evidence says it fails this kind of work. Deep reasoning mode forces the
           strongest tier for planning and execution.
         </p>
@@ -24,7 +24,7 @@ export function FeaturesPage() {
       <PageSection heading="Plan review (Plan mode)">
         <p>
           Choose Plan mode to stop after planning: you get the complete implementation
-          plan — every stage, its description, dependencies, and checks — in its own tab.
+          plan: every stage, its description, dependencies, and checks, in its own tab.
           Uncheck stages you do not want, then run. Every other mode starts immediately.
         </p>
       </PageSection>
@@ -48,8 +48,8 @@ export function FeaturesPage() {
       <PageSection heading="Budget guard with full retry projection">
         <p>
           Set a budget per task. Before each attempt the guard reserves the projected
-          cost of the entire remaining path — input context growth, model output,
-          escalation, and verification operations — and skips with a clear report when
+          cost of the entire remaining path (input context growth, model output,
+          escalation, and verification operations) and skips with a clear report when
           it cannot fit. You are never silently overcharged.
         </p>
       </PageSection>
@@ -57,7 +57,7 @@ export function FeaturesPage() {
       <PageSection heading="Durable cloud execution">
         <p>
           On the Cloudflare backend, tasks run as durable workflows: close the tab, shut
-          the laptop — execution continues in the cloud and the results are polled back
+          the laptop, execution continues in the cloud and the results are polled back
           when you return. Locally, execution streams token-by-token live into the chat.
         </p>
       </PageSection>

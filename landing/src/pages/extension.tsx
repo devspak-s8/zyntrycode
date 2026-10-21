@@ -24,7 +24,7 @@ export function ExtensionPage() {
         <ul style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 8 }}>
           <li>File operations are confined to the open workspace folder (realpath-checked).</li>
           <li>Sensitive paths (.env, credentials, keys, certs) are never read, written, or snapshotted.</li>
-          <li>Commands are parsed without a shell — no pipes, redirects, or command substitution.</li>
+          <li>Commands are parsed without a shell (no pipes, redirects, or command substitution).</li>
           <li>Unknown or dangerous commands wait for your explicit approval.</li>
           <li>Command output is redacted against the workspace's secret values.</li>
         </ul>
@@ -32,10 +32,10 @@ export function ExtensionPage() {
 
       <PageSection heading="Credentials">
         <p>
-          The extension arrives connected — your access is managed automatically and
-          stored in <strong style={{ color: "var(--text-primary)" }}>VS Code SecretStorage</strong>, never written to
-          settings files or source. No provider API keys and no encryption keys are ever
-          packaged inside the extension.
+          The extension arrives connected; access is managed automatically. Workspace
+          credentials stay inside the extension process and are never written to
+          settings files or source. No provider API keys or tokens are ever packaged
+          inside the extension.
         </p>
       </PageSection>
 

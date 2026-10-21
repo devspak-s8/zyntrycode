@@ -14,7 +14,7 @@ export function EnvironmentsPage() {
           A plain FastAPI server (uvicorn) backed by in-memory SQLite. It is the fastest
           way to develop against the API: no Cloudflare account needed, everything resets
           on restart. Execution runs synchronously in the request and streams events
-          live to the UI. Verification commands run in your attached runner only — the
+          live to the UI. Verification commands run in your attached runner only; the
           local backend never pretends a repo check passed.
         </p>
       </PageSection>
@@ -29,8 +29,8 @@ export function EnvironmentsPage() {
           <li><strong style={{ color: "var(--text-primary)" }}>Workers AI:</strong> edge inference as an additional provider, alongside OpenAI and Anthropic keys stored as Cloudflare secrets.</li>
         </ul>
         <p>
-          Every endpoint except the health check requires a bearer token — the public cannot
-          reach anything else.
+          The service ships open and unauthenticated; self-hosters can set an API token
+          to require bearer auth on every endpoint except the health check.
         </p>
       </PageSection>
 
@@ -50,9 +50,10 @@ export function EnvironmentsPage() {
 
       <PageSection heading="Web app vs. VS Code extension">
         <p>
-          The web app is the local companion surface — plan review, evidence, transcripts,
+          The web app is the local companion surface: plan review, evidence, transcripts,
           and cloud workflow results. The VS Code extension is the product client: it
-          also serves as the local runner and holds your API token in SecretStorage.
+          also serves as the local runner and keeps its workspace credentials inside the
+          extension process.
           The public web deployment is the landing page only.
         </p>
       </PageSection>

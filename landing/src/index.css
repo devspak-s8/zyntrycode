@@ -1,5 +1,5 @@
 :root {
-  /* Color system — aligned with the Zyntry Code app theme */
+  /* Color system, aligned with the Zyntry Code app theme */
   --bg-base: #0D1217;
   --bg-surface: #0E1318;
   --bg-elevated: #151D24;
@@ -234,7 +234,7 @@ button {
   background: rgba(255, 255, 255, 0.05);
 }
 
-/* Workspace-style cards — matches the main app's card design:
+/* Workspace-style cards, matches the main app's card design:
    translucent #121820/95 surface, white/10 border, 24px radius,
    deep shadow, backdrop blur, brighter border on hover */
 .ws-card {

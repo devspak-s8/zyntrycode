@@ -6,7 +6,7 @@ export function Environments() {
     <Section id="environments" style={{ paddingTop: "100px" }}>
       <SectionHeading
         eyebrow="Execution environments"
-        title="Run locally or remotely — same orchestration, same evidence"
+        title="Run locally or remotely: same orchestration, same evidence"
         description="Zyntry Code runs wherever your code lives. Use the VS Code extension for local development, or dispatch to a container worker for remote execution in your CI pipeline."
         align="center"
       />
@@ -62,7 +62,7 @@ export function Environments() {
           </div>
           <p style={{ fontSize: "14px", lineHeight: 1.6, color: "var(--text-secondary)", marginBottom: "20px" }}>
             Run orchestration directly in your editor. The extension integrates task assessment,
-            routing, execution, and verification into your local development cycle — no external
+            routing, execution, and verification into your local development cycle, no external
             services required.
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -134,12 +134,12 @@ export function Environments() {
           </div>
           <p style={{ fontSize: "14px", lineHeight: 1.6, color: "var(--text-secondary)", marginBottom: "20px" }}>
             Dispatch orchestration to an isolated container worker. Ideal for CI pipelines and
-            long-running tasks — the worker executes the full pipeline and returns the verified
+            long-running tasks, the worker executes the full pipeline and returns the verified
             artifact and execution trace.
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {[
-              "Isolated container per run — no host contamination",
+              "Isolated container per run, no host contamination",
               "Integrates with existing CI/CD pipelines",
               "Returns verified Git artifact + full trace",
               "Scales horizontally for concurrent task dispatch",
