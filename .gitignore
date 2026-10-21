@@ -1,11 +1,10 @@
-# Python
+﻿# Python
 __pycache__/
 *.py[cod]
 .venv/
 venv/
 .pytest_cache/
 *.egg-info/
-dist/
 build/
 
 # Local secrets (never commit real keys)
@@ -14,12 +13,11 @@ build/
 
 # Cloudflare / Wrangler
 .wrangler/
-node_modules/
 .venv-workers/
 python_modules/
 worker-env/
 
-# Docker (local worker state)
+# Docker (local worker worker data)
 worker-data/
 
 # Editors / OS
@@ -27,9 +25,26 @@ worker-data/
 .idea/
 .DS_Store
 Thumbs.db
-# Frontend
+
+# Frontend / Vite
+node_modules/
+dist/
 frontend/node_modules/
 frontend/dist/
 frontend/.env
+*.tsbuildinfo
+vite.config.js.timestamp-*.mjs
+vite.config.mjs.timestamp-*.mjs
+vite.config.cjs.timestamp-*.mjs
+vite.config.ts.timestamp-*.mjs
+vite.config.mts.timestamp-*.mjs
+vite.config.cts.timestamp-*.mjs
+vitest.config.js.timestamp-*.mjs
+vitest.config.mjs.timestamp-*.mjs
+vitest.config.cjs.timestamp-*.mjs
+vitest.config.ts.timestamp-*.mjs
+vitest.config.mts.timestamp-*.mjs
+vitest.config.cts.timestamp-*.mjs
 
+# Extension
 vscode-ext/*.vsix

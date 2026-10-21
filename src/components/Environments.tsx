@@ -20,14 +20,7 @@ export function Environments() {
         className="env-grid"
       >
         {/* Local */}
-        <div
-          style={{
-            padding: "32px 28px",
-            borderRadius: "var(--radius-lg)",
-            background: "var(--bg-surface)",
-            border: "1px solid var(--border-default)",
-          }}
-        >
+        <div className="ws-card" style={{ padding: "32px 28px" }}>
           <div
             style={{
               display: "flex",
@@ -97,14 +90,7 @@ export function Environments() {
         </div>
 
         {/* Remote */}
-        <div
-          style={{
-            padding: "32px 28px",
-            borderRadius: "var(--radius-lg)",
-            background: "var(--bg-surface)",
-            border: "1px solid var(--border-default)",
-          }}
-        >
+        <div className="ws-card" style={{ padding: "32px 28px" }}>
           <div
             style={{
               display: "flex",

@@ -4,17 +4,15 @@ const footerLinks = [
     links: [
       { label: "How it works", href: "#walkthrough" },
       { label: "Features", href: "#features" },
-      { label: "Demo", href: "#demo" },
-      { label: "Benefits", href: "#benefits" },
+      { label: "Environments", href: "#environments" },
     ],
   },
   {
     title: "Resources",
     links: [
-      { label: "Documentation", href: "#" },
-      { label: "Execution traces", href: "#demo" },
+      { label: "Documentation", href: "https://github.com/devspak-s8/Zyntry-Code" },
       { label: "Model routing guide", href: "#features" },
-      { label: "VS Code extension", href: "#cta" },
+      { label: "VS Code extension", href: "https://github.com/devspak-s8/Zyntry-Code/tree/main/vscode-ext" },
     ],
   },
   {
@@ -22,8 +20,8 @@ const footerLinks = [
     links: [
       { label: "Get started", href: "#cta" },
       { label: "Sign in", href: "#cta" },
-      { label: "Contact", href: "#cta" },
-      { label: "Security", href: "#" },
+      { label: "Contact", href: "https://github.com/devspak-s8/Zyntry-Code/issues" },
+      { label: "Security", href: "https://github.com/devspak-s8/Zyntry-Code" },
     ],
   },
 ];
@@ -95,22 +93,27 @@ export function Footer() {
                 {col.title}
               </div>
               <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "10px" }}>
-                {col.links.map((link) => (
-                  <li key={link.label}>
-                    <a
-                      href={link.href}
-                      style={{
-                        fontSize: "14px",
-                        color: "var(--text-secondary)",
-                        transition: "color var(--transition)",
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")}
-                      onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-secondary)")}
-                    >
-                      {link.label}
-                    </a>
-                  </li>
-                ))}
+                {col.links.map((link) => {
+                  const external = link.href.startsWith("http");
+                  return (
+                    <li key={link.label}>
+                      <a
+                        href={link.href}
+                        target={external ? "_blank" : undefined}
+                        rel={external ? "noreferrer noopener" : undefined}
+                        style={{
+                          fontSize: "14px",
+                          color: "var(--text-secondary)",
+                          transition: "color var(--transition)",
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-secondary)")}
+                      >
+                        {link.label}
+                      </a>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ))}

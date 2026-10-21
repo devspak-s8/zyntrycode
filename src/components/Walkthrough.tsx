@@ -134,21 +134,143 @@ export function Walkthrough() {
   );
 }
 
-function ArtifactFrame({ children }: { children: React.ReactNode }) {
+/* ---------- shared artifact chrome ---------- */
+
+function iconProps() {
+  return {
+    width: 14,
+    height: 14,
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+  };
+}
+
+function GaugeIcon() {
   return (
-    <div
-      style={{
-        padding: "24px",
-        borderRadius: "var(--radius-lg)",
-        background: "var(--bg-surface)",
-        border: "1px solid var(--border-default)",
-        boxShadow: "0 20px 40px -16px rgba(0,0,0,0.5)",
-      }}
-    >
-      {children}
+    <svg viewBox="0 0 24 24" {...iconProps()}>
+      <path d="M4 14 a8 8 0 1 1 16 0" />
+      <path d="M12 14 L16 9" />
+      <circle cx="12" cy="14" r="1.4" />
+    </svg>
+  );
+}
+
+function GraphIcon() {
+  return (
+    <svg viewBox="0 0 24 24" {...iconProps()}>
+      <rect x="3" y="3" width="6" height="5" rx="1" />
+      <rect x="15" y="3" width="6" height="5" rx="1" />
+      <rect x="9" y="16" width="6" height="5" rx="1" />
+      <path d="M6 8 L12 16" />
+      <path d="M18 8 L12 16" />
+    </svg>
+  );
+}
+
+function RouteIcon() {
+  return (
+    <svg viewBox="0 0 24 24" {...iconProps()}>
+      <circle cx="6" cy="6" r="2" />
+      <circle cx="18" cy="6" r="2" />
+      <circle cx="12" cy="18" r="2" />
+      <path d="M6 8 L6 12 Q6 14 8 14 L10 14 Q12 14 12 16" />
+      <path d="M18 8 L18 12 Q18 14 16 14 L14 14 Q12 14 12 16" />
+    </svg>
+  );
+}
+
+function BoltIcon() {
+  return (
+    <svg viewBox="0 0 24 24" {...iconProps()}>
+      <path d="M13 3 L5 13 L11 13 L10 21 L19 10 L12.5 10 Z" />
+    </svg>
+  );
+}
+
+function ShieldCheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" {...iconProps()}>
+      <path d="M12 3 L20 6 L20 12 Q20 17 12 21 Q4 17 4 12 L4 6 Z" />
+      <path d="M9 12 L11 14 L15 10" />
+    </svg>
+  );
+}
+
+function GitPullIcon() {
+  return (
+    <svg viewBox="0 0 24 24" {...iconProps()}>
+      <circle cx="6" cy="6" r="2.2" />
+      <circle cx="6" cy="18" r="2.2" />
+      <circle cx="18" cy="18" r="2.2" />
+      <path d="M6 8.2 L6 15.8" />
+      <path d="M18 15.8 L18 12 Q18 9 15 9 L12 9" />
+      <path d="M14 7 L12 9 L14 11" />
+    </svg>
+  );
+}
+
+function ArtifactFrame({
+  icon,
+  label,
+  status,
+  children,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  status?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="ws-card" style={{ overflow: "hidden" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+          padding: "12px 16px",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          background: "var(--bg-elevated)",
+        }}
+      >
+        <div
+          style={{
+            width: "26px",
+            height: "26px",
+            borderRadius: "var(--radius-sm)",
+            background: "var(--accent-glow)",
+            border: "1px solid rgba(147,197,253,0.25)",
+            color: "var(--accent)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          {icon}
+        </div>
+        <div
+          style={{
+            fontSize: "11px",
+            fontFamily: "var(--font-mono)",
+            fontWeight: 600,
+            color: "var(--text-muted)",
+            textTransform: "uppercase",
+            letterSpacing: "0.1em",
+          }}
+        >
+          {label}
+        </div>
+        {status && <div style={{ marginLeft: "auto" }}>{status}</div>}
+      </div>
+      <div style={{ padding: "18px 16px" }}>{children}</div>
     </div>
   );
 }
+
+/* ---------- 01 · assessment ---------- */
 
 function AssessArtifact() {
   const rows = [
@@ -158,28 +280,39 @@ function AssessArtifact() {
     { label: "Blast radius", value: "Contained", pct: 35, color: "var(--success)" },
   ];
   return (
-    <ArtifactFrame>
-      <ArtifactLabel>Task assessment report</ArtifactLabel>
+    <ArtifactFrame
+      icon={<GaugeIcon />}
+      label="Task assessment report"
+      status={<Badge variant="warning" dot>gate</Badge>}
+    >
       {rows.map((r) => (
         <div key={r.label} style={{ marginBottom: "16px" }}>
           <div
             style={{
               display: "flex",
               justifyContent: "space-between",
+              alignItems: "baseline",
               fontSize: "13px",
-              marginBottom: "6px",
+              marginBottom: "7px",
             }}
           >
             <span style={{ color: "var(--text-secondary)" }}>{r.label}</span>
-            <span style={{ color: "var(--text-primary)", fontFamily: "var(--font-mono)", fontSize: "12px" }}>
+            <span
+              style={{
+                color: r.color,
+                fontFamily: "var(--font-mono)",
+                fontSize: "12px",
+                fontWeight: 600,
+              }}
+            >
               {r.value}
             </span>
           </div>
           <div
             style={{
-              height: "4px",
+              height: "6px",
               background: "var(--bg-elevated-hover)",
-              borderRadius: "2px",
+              borderRadius: "999px",
               overflow: "hidden",
             }}
           >
@@ -187,9 +320,8 @@ function AssessArtifact() {
               style={{
                 width: `${r.pct}%`,
                 height: "100%",
-                background: r.color,
-                borderRadius: "2px",
-                opacity: 0.8,
+                background: `linear-gradient(90deg, transparent 0%, ${r.color} 100%)`,
+                borderRadius: "999px",
               }}
             />
           </div>
@@ -197,44 +329,77 @@ function AssessArtifact() {
       ))}
       <div
         style={{
-          marginTop: "20px",
-          padding: "12px",
-          borderRadius: "var(--radius-sm)",
+          marginTop: "18px",
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+          padding: "11px 12px",
+          borderRadius: "var(--radius-md)",
           background: "var(--warning-dim)",
+          border: "1px solid rgba(244,199,106,0.2)",
           fontSize: "12px",
           fontFamily: "var(--font-mono)",
           color: "var(--warning)",
           lineHeight: 1.5,
         }}
       >
-        ⚠ Requires approval gate — risk surface exceeds threshold
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+          <path d="M12 4 L21 19 L3 19 Z" />
+          <path d="M12 10 L12 14" />
+          <path d="M12 16.5 L12 16.6" />
+        </svg>
+        Requires approval gate — risk surface exceeds threshold
       </div>
     </ArtifactFrame>
   );
 }
 
+/* ---------- 02 · plan ---------- */
+
 function PlanArtifact() {
   return (
-    <ArtifactFrame>
-      <ArtifactLabel>Task dependency graph</ArtifactLabel>
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-        <GraphRow label="Assess" indent={0} concurrent={false} />
-        <GraphRow label="Plan" indent={0} concurrent={false} />
+    <ArtifactFrame
+      icon={<GraphIcon />}
+      label="Task dependency graph"
+      status={<Badge variant="info">6 stages</Badge>}
+    >
+      <div
+        style={{
+          position: "relative",
+          display: "flex",
+          flexDirection: "column",
+          gap: "8px",
+          paddingLeft: "14px",
+        }}
+      >
+        {/* connector rail */}
+        <div
+          style={{
+            position: "absolute",
+            left: "4px",
+            top: "14px",
+            bottom: "14px",
+            width: "1px",
+            background: "var(--border-default)",
+          }}
+        />
+        <GraphRow label="Assess" depth={0} />
+        <GraphRow label="Plan" depth={0} />
         <div style={{ display: "flex", gap: "8px" }}>
-          <GraphRow label="auth-module" indent={1} concurrent={true} />
-          <GraphRow label="session-store" indent={1} concurrent={true} />
+          <GraphRow label="auth-module" depth={1} concurrent />
+          <GraphRow label="session-store" depth={1} concurrent />
         </div>
-        <GraphRow label="middleware" indent={1} concurrent={false} />
+        <GraphRow label="middleware" depth={1} />
         <div style={{ display: "flex", gap: "8px" }}>
-          <GraphRow label="test suite" indent={1} concurrent={true} />
-          <GraphRow label="type check" indent={1} concurrent={true} />
+          <GraphRow label="test suite" depth={1} concurrent />
+          <GraphRow label="type check" depth={1} concurrent />
         </div>
-        <GraphRow label="Deliver PR" indent={0} concurrent={false} />
+        <GraphRow label="Deliver PR" depth={0} gate />
       </div>
       <div style={{ marginTop: "16px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
         <Badge variant="success">2 concurrent pairs</Badge>
         <Badge variant="info">6 stages</Badge>
-        <Badge variant="default">2 gates</Badge>
+        <Badge variant="warning">2 gates</Badge>
       </div>
     </ArtifactFrame>
   );
@@ -242,40 +407,109 @@ function PlanArtifact() {
 
 function GraphRow({
   label,
-  indent,
+  depth,
   concurrent,
+  gate,
 }: {
   label: string;
-  indent: number;
-  concurrent: boolean;
+  depth: number;
+  concurrent?: boolean;
+  gate?: boolean;
 }) {
+  const dot = gate ? "var(--warning)" : concurrent ? "var(--accent)" : "var(--success)";
   return (
     <div
       style={{
-        marginLeft: indent * 24,
+        position: "relative",
+        marginLeft: depth * 18,
         padding: "8px 14px",
         borderRadius: "var(--radius-sm)",
         background: concurrent ? "var(--accent-glow)" : "var(--bg-elevated)",
-        border: `1px solid ${concurrent ? "rgba(103,232,249,0.2)" : "var(--border-subtle)"}`,
+        border: `1px solid ${concurrent ? "rgba(147,197,253,0.2)" : "var(--border-subtle)"}`,
         fontSize: "12px",
         fontFamily: "var(--font-mono)",
-        color: "var(--text-secondary)",
+        color: concurrent ? "var(--text-primary)" : "var(--text-secondary)",
         display: "flex",
         alignItems: "center",
         gap: "8px",
         flex: concurrent ? 1 : "none",
       }}
     >
+      {/* rail connector tick */}
       <span
         style={{
-          width: "5px",
-          height: "5px",
+          position: "absolute",
+          left: depth > 0 ? "-14px" : undefined,
+          top: "50%",
+          width: "14px",
+          height: "1px",
+          background: "var(--border-default)",
+        }}
+      />
+      <span
+        style={{
+          width: "6px",
+          height: "6px",
           borderRadius: "50%",
-          background: concurrent ? "var(--accent)" : "var(--text-muted)",
+          background: dot,
+          flexShrink: 0,
+          boxShadow: concurrent || gate ? `0 0 8px ${dot}` : "none",
         }}
       />
       {label}
+      {gate && (
+        <span
+          style={{
+            marginLeft: "auto",
+            fontSize: "10px",
+            color: "var(--warning)",
+            letterSpacing: "0.06em",
+          }}
+        >
+          GATE
+        </span>
+      )}
     </div>
+  );
+}
+
+/* ---------- 03 · routing ---------- */
+
+const modelDots: Record<string, string> = {
+  "claude-sonnet": "var(--accent)",
+  "claude-haiku": "var(--success)",
+  "gpt-4o": "var(--info)",
+};
+
+function ModelChip({ model }: { model: string }) {
+  const dot = modelDots[model] ?? "var(--accent)";
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "7px",
+        padding: "4px 10px",
+        borderRadius: "999px",
+        background: "var(--accent-glow)",
+        border: "1px solid rgba(147,197,253,0.2)",
+        fontFamily: "var(--font-mono)",
+        fontSize: "11px",
+        color: "var(--text-primary)",
+        whiteSpace: "nowrap",
+      }}
+    >
+      <span
+        style={{
+          width: "6px",
+          height: "6px",
+          borderRadius: "50%",
+          background: dot,
+          boxShadow: `0 0 6px ${dot}`,
+        }}
+      />
+      {model}
+    </span>
   );
 }
 
@@ -286,27 +520,29 @@ function RouteArtifact() {
     { stage: "middleware", model: "claude-haiku", reason: "low-risk boilerplate", cost: "$0.03" },
   ];
   return (
-    <ArtifactFrame>
-      <ArtifactLabel>Model routing decisions</ArtifactLabel>
-      {routes.map((r) => (
+    <ArtifactFrame
+      icon={<RouteIcon />}
+      label="Model routing decisions"
+      status={<Badge variant="info">3 stages</Badge>}
+    >
+      {routes.map((r, i) => (
         <div
           key={r.stage}
           style={{
-            display: "grid",
-            gridTemplateColumns: "1fr auto",
-            padding: "14px 0",
-            borderBottom: "1px solid var(--border-subtle)",
-            gap: "12px",
+            display: "flex",
             alignItems: "center",
+            gap: "12px",
+            padding: "12px 0",
+            borderBottom: i < routes.length - 1 ? "1px solid var(--border-subtle)" : "none",
           }}
         >
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div
               style={{
                 fontSize: "13px",
                 fontFamily: "var(--font-mono)",
                 color: "var(--text-primary)",
-                marginBottom: "4px",
+                marginBottom: "3px",
               }}
             >
               {r.stage}
@@ -315,60 +551,77 @@ function RouteArtifact() {
               {r.reason}
             </div>
           </div>
-          <div style={{ textAlign: "right" }}>
-            <Badge variant="accent">{r.model}</Badge>
-            <div
-              style={{
-                fontSize: "11px",
-                color: "var(--text-muted)",
-                fontFamily: "var(--font-mono)",
-                marginTop: "6px",
-              }}
-            >
-              {r.cost}
-            </div>
-          </div>
+          <ModelChip model={r.model} />
+          <span
+            style={{
+              fontSize: "12px",
+              color: "var(--text-secondary)",
+              fontFamily: "var(--font-mono)",
+              width: "44px",
+              textAlign: "right",
+            }}
+          >
+            {r.cost}
+          </span>
         </div>
       ))}
     </ArtifactFrame>
   );
 }
 
+/* ---------- 04 · execution ---------- */
+
 function ExecuteArtifact() {
+  const rows = [
+    { t: "0:00", icon: "→", color: "var(--info)", event: "auth-module started (sonnet)" },
+    { t: "0:00", icon: "→", color: "var(--info)", event: "session-store started (gpt-4o)" },
+    { t: "0:01", icon: "✓", color: "var(--success)", event: "auth-module complete — 1.2s" },
+    { t: "0:02", icon: "✓", color: "var(--success)", event: "session-store complete — 2.1s" },
+    { t: "0:02", icon: "→", color: "var(--info)", event: "middleware started (haiku)" },
+    { t: "0:03", icon: "✕", color: "var(--error)", event: "middleware failed verification" },
+    { t: "0:03", icon: "↻", color: "var(--warning)", event: "escalating to sonnet" },
+    { t: "0:04", icon: "→", color: "var(--info)", event: "middleware retry started (sonnet)" },
+  ];
   return (
-    <ArtifactFrame>
-      <ArtifactLabel>Execution timeline</ArtifactLabel>
+    <ArtifactFrame
+      icon={<BoltIcon />}
+      label="Execution timeline"
+      status={<Badge variant="warning" dot>1 retry</Badge>}
+    >
       <div
         style={{
           display: "flex",
           flexDirection: "column",
-          gap: "6px",
+          gap: "4px",
           fontFamily: "var(--font-mono)",
           fontSize: "12px",
         }}
       >
-        {[
-          { t: "0:00", event: "→ auth-module started (sonnet)", color: "var(--text-secondary)" },
-          { t: "0:00", event: "→ session-store started (gpt-4o)", color: "var(--text-secondary)" },
-          { t: "0:01", event: "✓ auth-module complete — 1.2s", color: "var(--success)" },
-          { t: "0:02", event: "✓ session-store complete — 2.1s", color: "var(--success)" },
-          { t: "0:02", event: "→ middleware started (haiku)", color: "var(--text-secondary)" },
-          { t: "0:03", event: "✕ middleware failed verification", color: "var(--error)" },
-          { t: "0:03", event: "↻ escalating to sonnet", color: "var(--warning)" },
-          { t: "0:04", event: "→ middleware retry started (sonnet)", color: "var(--info)" },
-        ].map((row, i) => (
+        {rows.map((row, i) => (
           <div
             key={i}
             style={{
               display: "flex",
-              gap: "14px",
+              alignItems: "center",
+              gap: "10px",
               padding: "6px 10px",
               borderRadius: "var(--radius-sm)",
               background: i % 2 === 0 ? "var(--bg-elevated)" : "transparent",
             }}
           >
             <span style={{ color: "var(--text-muted)", flexShrink: 0 }}>{row.t}</span>
-            <span style={{ color: row.color }}>{row.event}</span>
+            <span
+              style={{
+                color: row.color,
+                width: "14px",
+                textAlign: "center",
+                flexShrink: 0,
+                fontWeight: 700,
+              }}
+            >
+              {row.icon}
+            </span>
+            <span style={{ color: "var(--text-secondary)" }}>{row.event}</span>
           </div>
         ))}
       </div>
@@ -376,134 +629,212 @@ function ExecuteArtifact() {
   );
 }
 
+/* ---------- 05 · verification ---------- */
+
 function VerifyArtifact() {
+  const checks = [
+    { label: "Unit tests", value: "24/24", ok: true },
+    { label: "Type check", value: "0 errors", ok: true },
+    { label: "CSRF check", value: "1 failed", ok: false },
+  ];
   return (
-    <ArtifactFrame>
-      <ArtifactLabel>Verification report</ArtifactLabel>
+    <ArtifactFrame
+      icon={<ShieldCheckIcon />}
+      label="Verification report"
+      status={<Badge variant="error" dot>1 failed</Badge>}
+    >
       <div
         style={{
-          padding: "16px",
-          borderRadius: "var(--radius-md)",
-          background: "var(--bg-elevated)",
-          border: "1px solid var(--border-subtle)",
-          marginBottom: "12px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "8px",
+          marginBottom: "14px",
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px" }}>
-          <span style={{ fontSize: "13px", color: "var(--text-primary)" }}>Unit tests</span>
-          <span style={{ fontSize: "13px", color: "var(--success)", fontFamily: "var(--font-mono)" }}>24/24 ✓</span>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px" }}>
-          <span style={{ fontSize: "13px", color: "var(--text-primary)" }}>Type check</span>
-          <span style={{ fontSize: "13px", color: "var(--success)", fontFamily: "var(--font-mono)" }}>0 errors ✓</span>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <span style={{ fontSize: "13px", color: "var(--text-primary)" }}>CSRF check</span>
-          <span style={{ fontSize: "13px", color: "var(--error)", fontFamily: "var(--font-mono)" }}>1 failed ✕</span>
-        </div>
+        {checks.map((c) => (
+          <div
+            key={c.label}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              padding: "9px 12px",
+              borderRadius: "var(--radius-md)",
+              background: "var(--bg-elevated)",
+              border: "1px solid var(--border-subtle)",
+            }}
+          >
+            <span
+              style={{
+                width: "20px",
+                height: "20px",
+                borderRadius: "var(--radius-sm)",
+                background: c.ok ? "var(--success-dim)" : "var(--error-dim)",
+                color: c.ok ? "var(--success)" : "var(--error)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "11px",
+                fontWeight: 700,
+                fontFamily: "var(--font-mono)",
+                flexShrink: 0,
+              }}
+            >
+              {c.ok ? "✓" : "✕"}
+            </span>
+            <span style={{ fontSize: "13px", color: "var(--text-primary)", flex: 1 }}>{c.label}</span>
+            <span
+              style={{
+                fontSize: "12px",
+                fontFamily: "var(--font-mono)",
+                color: c.ok ? "var(--success)" : "var(--error)",
+                fontWeight: 600,
+              }}
+            >
+              {c.value}
+            </span>
+          </div>
+        ))}
       </div>
       <div
         style={{
-          padding: "14px",
-          borderRadius: "var(--radius-sm)",
+          display: "flex",
+          gap: "10px",
+          padding: "12px",
+          borderRadius: "var(--radius-md)",
           background: "var(--error-dim)",
+          border: "1px solid rgba(255,125,125,0.2)",
           fontSize: "12px",
           fontFamily: "var(--font-mono)",
           color: "var(--error)",
           lineHeight: 1.6,
         }}
       >
-        FAILURE: middleware/csrf.ts:42 — Missing CSRF token validation on POST /api/auth/session.
-        Expected: csrfVerify(req) before session.create(). Got: no call.
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: "2px" }}>
+          <path d="M12 4 L21 19 L3 19 Z" />
+          <path d="M12 10 L12 14" />
+          <path d="M12 16.5 L12 16.6" />
+        </svg>
+        <span>
+          middleware/csrf.ts:42 — Missing CSRF token validation on POST /api/auth/session.
+          Expected csrfVerify(req) before session.create().
+        </span>
       </div>
     </ArtifactFrame>
   );
 }
+
+/* ---------- 06 · delivery ---------- */
 
 function DeliverArtifact() {
   return (
-    <ArtifactFrame>
-      <ArtifactLabel>Delivery — approval-gated PR</ArtifactLabel>
+    <ArtifactFrame
+      icon={<GitPullIcon />}
+      label="Delivery — approval-gated PR"
+      status={<Badge variant="success" dot>verified</Badge>}
+    >
       <div
         style={{
-          padding: "16px",
-          borderRadius: "var(--radius-md)",
-          background: "var(--bg-elevated)",
-          border: "1px solid var(--border-subtle)",
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+          marginBottom: "14px",
+          flexWrap: "wrap",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
-          <span
-            style={{
-              padding: "3px 8px",
-              borderRadius: "var(--radius-sm)",
-              background: "var(--success-dim)",
-              color: "var(--success)",
-              fontSize: "11px",
-              fontFamily: "var(--font-mono)",
-              fontWeight: 600,
-            }}
-          >
-            +142
-          </span>
-          <span
-            style={{
-              padding: "3px 8px",
-              borderRadius: "var(--radius-sm)",
-              background: "var(--error-dim)",
-              color: "var(--error)",
-              fontSize: "11px",
-              fontFamily: "var(--font-mono)",
-              fontWeight: 600,
-            }}
-          >
-            −28
-          </span>
-          <span style={{ fontSize: "13px", color: "var(--text-secondary)", fontFamily: "var(--font-mono)" }}>
-            refactor-auth-session
-          </span>
-        </div>
-        <div style={{ fontFamily: "var(--font-mono)", fontSize: "12px", lineHeight: 1.8 }}>
-          <div style={{ color: "var(--text-muted)" }}>diff --git a/src/auth/middleware.ts</div>
-          <div style={{ color: "var(--error)" }}>-  if (req.method === "POST") {"{"}</div>
-          <div style={{ color: "var(--error)", paddingLeft: "16px" }}>    return handleSession(req);</div>
-          <div style={{ color: "var(--error)" }}>-  {"}"}</div>
-          <div style={{ color: "var(--success)" }}>+  if (req.method === "POST") {"{"}</div>
-          <div style={{ color: "var(--success)", paddingLeft: "16px" }}>+   const token = csrfVerify(req);</div>
-          <div style={{ color: "var(--success)", paddingLeft: "16px" }}>+   if (!token) return res.status(403).end();</div>
-          <div style={{ color: "var(--success)", paddingLeft: "16px" }}>+   return handleSession(req);</div>
-          <div style={{ color: "var(--success)" }}>+  {"}"}</div>
-        </div>
-        <div
+        <span
           style={{
-            marginTop: "16px",
-            display: "flex",
-            gap: "8px",
-            flexWrap: "wrap",
+            padding: "4px 10px",
+            borderRadius: "999px",
+            background: "var(--accent-glow)",
+            border: "1px solid rgba(147,197,253,0.2)",
+            color: "var(--text-primary)",
+            fontSize: "12px",
+            fontFamily: "var(--font-mono)",
           }}
         >
-          <Badge variant="success" dot>All verifications passed</Badge>
-          <Badge variant="default">Awaiting approval</Badge>
+          refactor-auth-session
+        </span>
+        <span
+          style={{
+            padding: "3px 8px",
+            borderRadius: "var(--radius-sm)",
+            background: "var(--success-dim)",
+            color: "var(--success)",
+            fontSize: "11px",
+            fontFamily: "var(--font-mono)",
+            fontWeight: 700,
+          }}
+        >
+          +142
+        </span>
+        <span
+          style={{
+            padding: "3px 8px",
+            borderRadius: "var(--radius-sm)",
+            background: "var(--error-dim)",
+            color: "var(--error)",
+            fontSize: "11px",
+            fontFamily: "var(--font-mono)",
+            fontWeight: 700,
+          }}
+        >
+          −28
+        </span>
+      </div>
+      <div
+        style={{
+          padding: "12px 14px",
+          borderRadius: "var(--radius-md)",
+          background: "var(--bg-base)",
+          border: "1px solid var(--border-subtle)",
+          fontFamily: "var(--font-mono)",
+          fontSize: "12px",
+          lineHeight: 1.9,
+          overflowX: "auto",
+        }}
+      >
+        <div style={{ color: "var(--text-muted)", marginBottom: "4px" }}>
+          diff --git a/src/auth/middleware.ts
+        </div>
+        <div style={{ background: "rgba(255,125,125,0.08)", color: "var(--error)", borderRadius: "4px", padding: "0 10px", marginBottom: "2px" }}>
+          -  if (req.method === "POST") {"{"}
+        </div>
+        <div style={{ background: "rgba(255,125,125,0.08)", color: "var(--error)", borderRadius: "4px", padding: "0 10px", marginBottom: "2px" }}>
+          {"    return handleSession(req);"}
+        </div>
+        <div style={{ background: "rgba(255,125,125,0.08)", color: "var(--error)", borderRadius: "4px", padding: "0 10px", marginBottom: "6px" }}>
+          -  {"}"}
+        </div>
+        <div style={{ background: "rgba(74,222,128,0.08)", color: "var(--success)", borderRadius: "4px", padding: "0 10px", marginBottom: "2px" }}>
+          +  if (req.method === "POST") {"{"}
+        </div>
+        <div style={{ background: "rgba(74,222,128,0.08)", color: "var(--success)", borderRadius: "4px", padding: "0 10px", marginBottom: "2px" }}>
+          {"    const token = csrfVerify(req);"}
+        </div>
+        <div style={{ background: "rgba(74,222,128,0.08)", color: "var(--success)", borderRadius: "4px", padding: "0 10px", marginBottom: "2px" }}>
+          {"    if (!token) return res.status(403).end();"}
+        </div>
+        <div style={{ background: "rgba(74,222,128,0.08)", color: "var(--success)", borderRadius: "4px", padding: "0 10px", marginBottom: "2px" }}>
+          {"    return handleSession(req);"}
+        </div>
+        <div style={{ background: "rgba(74,222,128,0.08)", color: "var(--success)", borderRadius: "4px", padding: "0 10px" }}>
+          +  {"}"}
         </div>
       </div>
+      <div
+        style={{
+          marginTop: "16px",
+          display: "flex",
+          gap: "8px",
+          flexWrap: "wrap",
+        }}
+      >
+        <Badge variant="success" dot>
+          All verifications passed
+        </Badge>
+        <Badge variant="default">Awaiting approval</Badge>
+      </div>
     </ArtifactFrame>
-  );
-}
-
-function ArtifactLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        fontSize: "11px",
-        fontFamily: "var(--font-mono)",
-        fontWeight: 600,
-        color: "var(--text-muted)",
-        textTransform: "uppercase",
-        letterSpacing: "0.1em",
-        marginBottom: "20px",
-      }}
-    >
-      {children}
-    </div>
   );
 }
