@@ -50,7 +50,7 @@ export function Navbar() {
         <div className="nav-right">
           <div className="nav-actions" style={{ display: "flex" }}>
             <Button variant="white" pill size="md" href="https://marketplace.visualstudio.com/items?itemName=ZyntryCode.zyntry-code" target="_blank" rel="noreferrer noopener">
-              Install for VS Code
+              Get extension
             </Button>
           </div>
           <button
@@ -89,7 +89,7 @@ export function Navbar() {
           ))}
           <div style={{ marginTop: "10px" }}>
             <Button variant="white" pill size="md" href="https://marketplace.visualstudio.com/items?itemName=ZyntryCode.zyntry-code" target="_blank" rel="noreferrer noopener">
-              Install for VS Code
+              Get extension
             </Button>
           </div>
         </div>
