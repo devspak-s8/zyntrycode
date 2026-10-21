@@ -292,8 +292,15 @@ div[id] {
 
 /* Responsive */
 @media (max-width: 900px) {
+  .site-nav {
+    grid-template-columns: 1fr auto;
+  }
   .nav-links {
     display: none !important;
+  }
+  .nav-right {
+    grid-column: 2;
+    justify-self: end;
   }
   .mobile-toggle {
     display: flex !important;
