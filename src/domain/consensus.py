@@ -112,13 +112,16 @@ def _parse_json(text: str) -> dict:
 
 def _norm_verdict(value: str) -> str:
     value = (value or "").strip().lower()
-    if value in ("approve", "approved", "yes"):
+    # Prefix matching: "approve with caveats", "concerns — non-blocking", and
+    # "reject: unsafe" all carry the model's verdict as the first word. Still
+    # only ever the model's own stated verdict — nothing is inferred or invented.
+    if value.startswith(("approve", "approved", "yes")):
         return "approve"
-    if value in ("concerns", "concern", "warn", "warning"):
+    if value.startswith(("concern", "warn", "note")):
         return "concerns"
-    if value in ("reject", "rejected", "no", "fail", "failed"):
+    if value.startswith(("reject", "rejected", "fail", "failed", "deny")):
         return "reject"
-    return ""  # invalid — caller re-asks rather than guessing
+    return ""  # unrecognized — caller re-asks rather than guessing
 
 
 def _norm_conclusion(value: str) -> str:
@@ -208,7 +211,9 @@ def build_review_prompt(task: dict, diff_text: str, evidence_text: str,
         f"# Task\n{task.get('prompt', '')}",
         "# Final diff\n" + (diff_text or "(no diff recorded)"),
         "# Execution evidence\n" + (evidence_text or "(no evidence)"),
-        "# Instructions\nReturn your verdict as strict JSON.",
+        "# Instructions\nFill in this exact JSON structure and return nothing else:\n"
+        "{\"verdict\": \"approve\"|\"concerns\"|\"reject\", \"reasons\": [\"...\"], "
+        "\"evidence\": [\"...\"]}",
     ])
     return system, prompt
 
@@ -219,7 +224,11 @@ def build_arbiter_prompt(task: dict, verdicts: list[dict]) -> str:
         lines.append(
             f"- [{v['role']}] {v['model']}: verdict={v['verdict']} "
             f"reasons={json.dumps(v['reasons'])} evidence={json.dumps(v['evidence'])}")
-    lines.append("# Instructions\nClassify every rejection and decide. Return strict JSON.")
+    lines.append("# Instructions\nFill in this exact JSON structure and return nothing else:\n"
+                 "{\"conclusion\": \"this_is_the_fix\"|\"repair\", \"statement\": \"...\", "
+                 "\"blocking_reasons\": [\"...\"], \"classification\": [{\"reason\": \"...\", "
+                 "\"class\": \"confirmed_blocking\"|\"unresolved\"|\"non_blocking\"}], "
+                 "\"dismissed\": [{\"reason\": \"...\", \"why\": \"...\"}]}")
     return "\n\n".join(lines)
 
 
