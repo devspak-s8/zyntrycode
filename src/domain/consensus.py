@@ -26,9 +26,9 @@ from util import truncate
 
 PANEL_SIZE = 3
 ROLES = ("correctness", "integration", "security")
-MAX_REVIEW_TOKENS = 900
+MAX_REVIEW_TOKENS = 1500
 MAX_REPAIR_TOKENS = 2500
-MAX_ARBITER_TOKENS = 600
+MAX_ARBITER_TOKENS = 800
 MAX_ROUNDS = 2
 # Conservative per-reviewer cost used by the budget guard before running.
 CONSENSUS_COST_CAP_USD = 0.02
@@ -60,7 +60,8 @@ REVIEW_SYSTEM = (
     "- reject: there is a blocking problem.\n"
     "Priority focus: {focus}\n"
     "Every reason MUST cite concrete files or functions from the diff. A "
-    "generic \"looks good\" demonstrates nothing — be specific."
+    "generic \"looks good\" demonstrates nothing — be specific.\n"
+    "Return ONLY the JSON object, nothing else. Keep each reason under 40 words."
 )
 
 ARBITER_SYSTEM = (
@@ -92,6 +93,10 @@ REPAIR_SYSTEM = (
 )
 
 _JSON_RE = re.compile(r"\{.*\}", re.DOTALL)
+# Read the model's own stated verdict when it wrapped it in prose/fences or was
+# truncated mid-JSON. This extracts the model's words — it never invents them.
+_VERDICT_WORD_RE = re.compile(r'"verdict"\s*:\s*"([a-z_]+)"', re.IGNORECASE)
+_CONCLUSION_WORD_RE = re.compile(r'"conclusion"\s*:\s*"([a-z_]+)"', re.IGNORECASE)
 
 
 def _parse_json(text: str) -> dict:
@@ -116,11 +121,23 @@ def _norm_verdict(value: str) -> str:
     return ""  # invalid — caller re-asks rather than guessing
 
 
+def _norm_conclusion(value: str) -> str:
+    value = (value or "").strip().lower()
+    if value in ("repair", "reject", "rejected", "fail", "failed"):
+        return "repair"
+    if value in ("this_is_the_fix", "fix", "approve", "approved", "accept",
+                 "accepted", "pass", "passed"):
+        return "this_is_the_fix"
+    return ""  # unrecognized — the stage reports unavailable instead of guessing
+
+
 def select_panel(models: list[ModelSpec], available_providers: set[str],
                  specialist_id: str | None) -> list[ModelSpec]:
     """Build the review panel: the specialist that wrote the code, then the
-    highest-tier models from DIFFERENT providers (heterogeneity is the point),
-    filling down to tier 3 when tier 4 is scarce."""
+    highest-tier models from DIFFERENT providers (heterogeneity is the point).
+    Providers with reliable JSON-following behavior are preferred; the free
+    Workers AI models only fill seats when nothing else is available, because
+    an unreadable verdict is a wasted seat."""
     eligible = [m for m in models if m.provider in available_providers]
     panel: list[ModelSpec] = []
     used_ids: set[str] = set()
@@ -134,25 +151,32 @@ def select_panel(models: list[ModelSpec], available_providers: set[str],
                 used_providers.add(m.provider)
                 break
 
-    for min_tier in (4, 3):
-        for m in sorted(eligible, key=lambda x: x.tier, reverse=True):
+    def fill(candidates: list[ModelSpec], allow_same_provider: bool) -> None:
+        for m in sorted(candidates, key=lambda x: x.tier, reverse=True):
             if len(panel) >= PANEL_SIZE:
-                break
-            if m.id in used_ids or m.provider in used_providers or m.tier < min_tier:
+                return
+            if m.id in used_ids:
+                continue
+            if not allow_same_provider and m.provider in used_providers:
                 continue
             panel.append(m)
             used_ids.add(m.id)
             used_providers.add(m.provider)
+
+    real = [m for m in eligible if m.provider != "workers_ai"]
+    free = [m for m in eligible if m.provider == "workers_ai"]
+    for min_tier in (4, 3):
+        tiered = [m for m in real if m.tier >= min_tier]
+        fill(tiered, allow_same_provider=False)
         if len(panel) >= PANEL_SIZE:
             break
-
+        fill(tiered, allow_same_provider=True)
+        if len(panel) >= PANEL_SIZE:
+            break
     if len(panel) < PANEL_SIZE:
-        for m in sorted(eligible, key=lambda x: x.tier, reverse=True):
-            if m.id not in used_ids:
-                panel.append(m)
-                used_ids.add(m.id)
-            if len(panel) >= PANEL_SIZE:
-                break
+        fill(real, allow_same_provider=True)
+    if len(panel) < PANEL_SIZE:
+        fill(free, allow_same_provider=True)
     return panel
 
 
@@ -222,6 +246,11 @@ async def _review_once(ctx: Any, model: ModelSpec, role: str, task: dict,
                     "evidence": []}
         data = _parse_json(res.text)
         verdict = _norm_verdict(str(data.get("verdict", "")))
+        if not verdict:
+            # The model may have wrapped the verdict in prose or fences, or been
+            # truncated. Read its own stated verdict word; never guess one.
+            word = _VERDICT_WORD_RE.search(res.text or "")
+            verdict = _norm_verdict(word.group(1)) if word else ""
         if verdict:
             return {
                 "model": model.id, "role": role, "verdict": verdict,
@@ -314,19 +343,37 @@ async def run(ctx: Any, *, task: dict, diff_text: str, evidence_text: str,
             provider = ctx.provider_for(arbiter.provider)
             prompt = build_arbiter_prompt(task, reviews)
             data = {}
+            norm_concl = ""
             for attempt in range(2):
                 res = await provider.complete(arbiter.id, prompt, system=ARBITER_SYSTEM,
                                               temperature=0.0, max_tokens=MAX_ARBITER_TOKENS)
                 _record(ctx, arbiter, res)
                 if not res.error:
                     data = _parse_json(res.text)
-                    if data.get("conclusion"):
+                    norm_concl = _norm_conclusion(str(data.get("conclusion", "")))
+                    if norm_concl:
+                        break
+                    # Read the arbiter's own stated conclusion if the JSON was
+                    # wrapped in prose or truncated; never guess one.
+                    word = _CONCLUSION_WORD_RE.search(res.text or "")
+                    norm_concl = _norm_conclusion(word.group(1)) if word else ""
+                    if norm_concl:
+                        data = {"conclusion": norm_concl, "statement": "",
+                                "blocking_reasons": [], "classification": [],
+                                "dismissed": []}
                         break
                     prompt = ("Your previous response was not valid JSON. Return EXACTLY "
                               "one JSON object with keys conclusion, statement, "
                               "blocking_reasons, classification, dismissed. No prose.\n\n"
                               + prompt)
-            if data.get("conclusion") == "repair":
+            if not norm_concl:
+                result["error"] = ("consensus unavailable: arbiter returned "
+                                   "no usable conclusion")
+                await ctx.emit("verification_limited", result["error"],
+                               {"limitations": [result["error"]]})
+                await ctx.emit("consensus_final", "Consensus unavailable", result)
+                return result
+            if norm_concl == "repair":
                 conclusion = "repair"
             statement = str(data.get("statement") or "")[:300]
             blocking = [str(r)[:300] for r in (data.get("blocking_reasons") or [])]
