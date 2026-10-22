@@ -180,11 +180,25 @@ def select_panel(models: list[ModelSpec], available_providers: set[str],
     return panel
 
 
-def pick_arbiter(models: list[ModelSpec], available_providers: set[str]) -> ModelSpec | None:
-    eligible = [m for m in models if m.provider in available_providers]
+def pick_arbiter(models: list[ModelSpec], available_providers: set[str],
+                 panel_ids: set[str] | None = None) -> ModelSpec | None:
+    """Pick the arbiter: a capable (tier >= 3) model, ideally not already on
+    the panel. Workers AI cannot follow the strict JSON contract and is
+    excluded. Falls back to tier >= 2, then to any eligible model."""
+    eligible = [m for m in models
+                if m.provider in available_providers and m.provider != "workers_ai"]
     if not eligible:
         return None
-    return min(eligible, key=lambda m: (m.cost_in + m.cost_out, m.tier))
+    if panel_ids:
+        off_panel = [m for m in eligible if m.id not in panel_ids]
+        pool = off_panel if off_panel else eligible
+    else:
+        pool = eligible
+    for min_tier in (3, 2):
+        candidates = [m for m in pool if m.tier >= min_tier]
+        if candidates:
+            return min(candidates, key=lambda m: (m.cost_in + m.cost_out, m.tier))
+    return min(pool, key=lambda m: (m.cost_in + m.cost_out, m.tier))
 
 
 def build_review_prompt(task: dict, diff_text: str, evidence_text: str,
@@ -327,8 +341,8 @@ async def run(ctx: Any, *, task: dict, diff_text: str, evidence_text: str,
             return result
 
         # Arbiter is required — no vote-counting fallback.
-        arbiter = pick_arbiter([m for m in catalog if m.provider in available_providers],
-                               available_providers)
+        arbiter = pick_arbiter(catalog, available_providers,
+                               panel_ids={m.id for m in models})
         if arbiter is None:
             result["error"] = "consensus unavailable: no arbiter model"
             await ctx.emit("verification_limited", result["error"],
@@ -344,11 +358,13 @@ async def run(ctx: Any, *, task: dict, diff_text: str, evidence_text: str,
             prompt = build_arbiter_prompt(task, reviews)
             data = {}
             norm_concl = ""
+            last_raw = ""
             for attempt in range(2):
                 res = await provider.complete(arbiter.id, prompt, system=ARBITER_SYSTEM,
                                               temperature=0.0, max_tokens=MAX_ARBITER_TOKENS)
                 _record(ctx, arbiter, res)
                 if not res.error:
+                    last_raw = res.text or ""
                     data = _parse_json(res.text)
                     norm_concl = _norm_conclusion(str(data.get("conclusion", "")))
                     if norm_concl:
@@ -367,8 +383,11 @@ async def run(ctx: Any, *, task: dict, diff_text: str, evidence_text: str,
                               "blocking_reasons, classification, dismissed. No prose.\n\n"
                               + prompt)
             if not norm_concl:
+                snippet = " ".join((last_raw or "").split())[:160]
                 result["error"] = ("consensus unavailable: arbiter returned "
-                                   "no usable conclusion")
+                                   "no usable conclusion"
+                                   + (f" (arbiter {arbiter.id} said: {snippet})"
+                                      if snippet else f" (arbiter {arbiter.id})"))
                 await ctx.emit("verification_limited", result["error"],
                                {"limitations": [result["error"]]})
                 await ctx.emit("consensus_final", "Consensus unavailable", result)
