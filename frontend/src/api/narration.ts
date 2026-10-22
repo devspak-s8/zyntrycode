@@ -80,6 +80,8 @@ export function narrateEvent(event: RawEvent): string | null {
         ? `The ${k.replace(/_/g, ' ')} stage failed — ${message}`
         : `This step failed: ${message}`;
     }
+    case 'stage_repairing':
+      return 'Verification failed — repairing with the check output…';
     case 'stage_skipped':
       return message;
     case 'stage_blocked':
@@ -90,6 +92,22 @@ export function narrateEvent(event: RawEvent): string | null {
       return `Using tool: ${String(event.data?.tool ?? 'tool')}`;
     case 'workspace_ops_dispatched':
       return 'Applying changes to the workspace…';
+    case 'consensus_started':
+      return 'Cross-model review panel is checking the finished work…';
+    case 'consensus_round':
+      return `Consensus round ${String(event.data?.round ?? '')} — models reviewing the diff…`;
+    case 'consensus_verdict':
+      return `Reviewer ${String(event.data?.model ?? '')}: ${String(event.data?.verdict ?? '')}`;
+    case 'consensus_arbitrated':
+      return event.data?.conclusion === 'repair'
+        ? 'Panel dissent — sending the concerns back for one repair round…'
+        : 'Panel agrees — arbitrating the final verdict…';
+    case 'consensus_repaired':
+      return 'Repair round produced a corrected diff — re-reviewing…';
+    case 'consensus_final':
+      return `Consensus verdict: ${String(event.data?.verdict ?? 'recorded')}`;
+    case 'consensus_applied':
+      return 'Consensus repair applied to the workspace.';
     case 'verification_failed':
       return 'Verification failed — retrying with a stronger approach…';
     case 'verification_limited':

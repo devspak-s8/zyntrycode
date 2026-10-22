@@ -177,6 +177,51 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                 {msg.content}
               </div>
 
+              {/* Cross-model consensus card */}
+              {msg.consensus?.ran && (
+                <div
+                  className={`flex items-start gap-2.5 p-3 rounded-xl border ${
+                    msg.consensus.verdict === 'approved'
+                      ? 'bg-[#0E2A1C]/60 border-[#55E6A5]/30'
+                      : msg.consensus.verdict === 'rejected_after_repair'
+                      ? 'bg-[#2A161A]/60 border-[#FF7D7D]/30'
+                      : 'bg-[#16233A]/60 border-[#82B9FF]/30'
+                  }`}
+                >
+                  <span
+                    className={`mt-0.5 w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold ${
+                      msg.consensus.verdict === 'approved'
+                        ? 'bg-[#55E6A5]/20 text-[#55E6A5]'
+                        : msg.consensus.verdict === 'rejected_after_repair'
+                        ? 'bg-[#FF7D7D]/20 text-[#FF9D9D]'
+                        : 'bg-[#82B9FF]/20 text-[#82B9FF]'
+                    }`}
+                  >
+                    ✓
+                  </span>
+                  <div className="text-[11px] leading-relaxed min-w-0">
+                    <div className="font-semibold text-[#F2F6F4]">
+                      Cross-model consensus ·{' '}
+                      {msg.consensus.verdict === 'approved' ? 'this is the fix' : msg.consensus.verdict}
+                    </div>
+                    <div className="text-[#A3AEAA] mt-0.5">
+                      {msg.consensus.agreement?.approve ?? 0} approve ·{' '}
+                      {msg.consensus.agreement?.concerns ?? 0} concerns ·{' '}
+                      {msg.consensus.agreement?.reject ?? 0} reject across{' '}
+                      {msg.consensus.models?.length ?? '?'} models
+                      {msg.consensus.rounds ? ` · ${msg.consensus.rounds} round${msg.consensus.rounds === 1 ? '' : 's'}` : ''}
+                    </div>
+                    {msg.consensus.dissent && msg.consensus.dissent.length > 0 && (
+                      <div className="text-[#F4C76A] mt-1 space-y-0.5">
+                        {msg.consensus.dissent.slice(0, 3).map((d, i) => (
+                          <div key={i}>• {d}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Details live in the panels — chips jump there */}
               {(hasChanges || hasVerification) && (
                 <div className="flex flex-wrap items-center gap-1.5">

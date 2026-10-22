@@ -337,13 +337,108 @@ async def execute_task(runtime: Runtime, task_id: str, *, on_event: EventCallbac
                 else:
                     failed_stages.add(s["id"])
 
+    # Cross-model consensus: once the stages finish successfully, a panel of
+    # heterogeneous models reviews the final work and returns a verdict.
+    # Enabled by default in agent/plan modes (never in fast), and can be
+    # disabled per task with constraints.consensus=false. Consensus is
+    # evidence, not proof — dissent is recorded, never averaged away.
+    stage_statuses = await store.get_stage_statuses(db, plan["id"])
+    stages_ok = (
+        not ctx.budget_exceeded
+        and not any(st in (StageStatus.FAILED.value, StageStatus.BLOCKED.value,
+                           StageStatus.PENDING.value)
+                    for st in stage_statuses.values())
+    )
+    consensus_enabled = (
+        policy_mode in ("agent", "plan")
+        and policy_routing != "fast"
+        and constraints.get("consensus") is not False
+    )
+    if stages_ok and consensus_enabled:
+        try:
+            from domain import consensus as consensus_domain
+            from domain.catalog import MODELS
+
+            artifacts_rows = await store.get_artifacts(db, execution_id)
+            diff_parts = [f"### {a['path']}\n{truncate(a.get('content') or '', 2000)}"
+                          for a in artifacts_rows if a.get("content")]
+            if not diff_parts:
+                impl_done = [s for s in stages
+                             if s["kind"].startswith("implement") and s["id"] in outputs]
+                if impl_done:
+                    s = impl_done[-1]
+                    diff_parts = [f"### {s['title']}\n{truncate(outputs[s['id']], 3000)}"]
+            diff_text = "\n\n".join(diff_parts)[:consensus_domain.MAX_DIFF_CHARS]
+
+            evidence_lines = []
+            for s in stages:
+                if s["status"] != StageStatus.SUCCEEDED.value:
+                    continue
+                reports = await store.get_verification_reports(db, s["id"])
+                line = f"- {s['kind']}: {s['status']}"
+                if reports:
+                    line += " checks=" + ", ".join(
+                        f"{r['tool']}:{r['status']}" for r in reports)
+                evidence_lines.append(line)
+            evidence_lines.append(f"- escalations: {ctx.escalation_count}")
+            evidence_lines.append(f"- spent: ${round(ctx.spend, 4)}")
+            evidence_text = "\n".join(evidence_lines)[:consensus_domain.MAX_EVIDENCE_CHARS]
+
+            specialist_id = None
+            for s in reversed(stages):
+                if s["kind"].startswith("implement") and s.get("assigned_model"):
+                    specialist_id = s["assigned_model"]
+                    break
+
+            panel = consensus_domain.select_panel(MODELS, avail, specialist_id)
+            projected = len(panel) * consensus_domain.CONSENSUS_COST_CAP_USD + 0.005
+            if len(panel) < 2:
+                await ctx.emit("verification_limited",
+                               "Consensus skipped: fewer than two models available",
+                               {"limitations": ["consensus requires at least two models"]})
+            elif ctx.budget is not None and ctx.spend + projected > ctx.budget:
+                await ctx.emit("verification_limited",
+                               "Consensus skipped: projected panel cost would exceed the budget",
+                               {"limitations": ["consensus skipped by the budget guard"]})
+            else:
+                consensus_result = await consensus_domain.run(
+                    ctx, task=task, diff_text=diff_text, evidence_text=evidence_text,
+                    specialist_id=specialist_id, models=panel,
+                    available_providers=avail, costs={})
+                repair_diff = consensus_result.get("diff")
+                if repair_diff:
+                    repair_arts = artifacts_domain.parse_artifacts(repair_diff)
+                    if workspace:
+                        for art in repair_arts:
+                            await tools_service.dispatch_apply_artifact(
+                                db, workspace_id=workspace["id"],
+                                execution_id=execution_id, stage_id=None,
+                                attempt_id=None, path=art["path"],
+                                content=art["content"])
+                        await ctx.emit("consensus_applied",
+                                       "Consensus repair applied to the workspace",
+                                       {"files": [a["path"] for a in repair_arts]})
+                    else:
+                        for art in repair_arts:
+                            await store.create_artifact(
+                                db, execution_id=execution_id, stage_id=None,
+                                path=art["path"], language=art["language"],
+                                source="consensus", content=art["content"])
+                        await ctx.emit("verification_limited",
+                                       "Consensus repair recorded, not applied (no workspace attached)",
+                                       {"limitations": [
+                                           "consensus repair needs an attached workspace to apply"]})
+        except Exception as exc:  # noqa: BLE001 - consensus must never break execution
+            await ctx.emit("verification_limited", "Consensus stage failed and was skipped",
+                           {"limitations": [f"consensus unavailable: {str(exc)[:160]}"]})
+
     await store.update_execution(db, execution_id, attempt_count=ctx.attempt_count,
                                  escalation_count=ctx.escalation_count,
                                  total_cost=round(ctx.spend, 6), total_tokens=ctx.total_tokens)
 
     # Success is judged from the final stage table: a task is complete only when
     # no stage is left failed, blocked, or never-run (retries included).
-    statuses = await store.get_stage_statuses(db, plan["id"])
+    statuses = stage_statuses
     success = (
         not ctx.budget_exceeded
         and not any(st in (StageStatus.FAILED.value, StageStatus.BLOCKED.value,
@@ -418,6 +513,11 @@ class _RunContext:
         if name not in self._providers:
             self._providers[name] = build_provider(name, self.runtime)
         return self._providers[name]
+
+    def record_spend(self, cost: float, tokens_in: int = 0, tokens_out: int = 0) -> None:
+        """Fold a model call's cost into the run totals (consensus panel calls)."""
+        self.spend += cost
+        self.total_tokens += tokens_in + tokens_out
 
     async def emit(self, type_: str, message: str, data: dict | None = None,
                    stage_id: str | None = None) -> None:

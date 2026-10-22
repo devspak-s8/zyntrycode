@@ -135,5 +135,19 @@ async def build_summary(runtime: Runtime, execution_id: str) -> dict:
         "timing": {
             "total_seconds": total_time_s,
         },
+        "consensus": _consensus_from_events(events),
         "events": events,
     }
+
+
+def _consensus_from_events(events: list[dict]) -> dict | None:
+    """Rebuild the consensus block from persisted events (verdict history +
+    the final consensus_final event)."""
+    final = next((e for e in events if e["type"] == "consensus_final"), None)
+    if final is None:
+        return None
+    data = dict(final.get("data") or {})
+    data.pop("history", None)
+    data.pop("diff", None)
+    data["ran"] = True
+    return data

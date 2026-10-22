@@ -143,6 +143,16 @@ export interface EvidencePackData {
   constitutionPassed: boolean;
 }
 
+export interface ConsensusInfo {
+  ran: boolean;
+  rounds?: number;
+  verdict?: string;
+  statement?: string;
+  agreement?: { approve: number; concerns: number; reject: number };
+  dissent?: string[];
+  models?: string[];
+}
+
 export interface ConstitutionRule {
   id: string;
   rule: string;
@@ -201,6 +211,7 @@ export interface ChatMessage {
   routing?: RoutingInfo;
   executionStages?: ExecutionStageItem[];
   evidencePack?: EvidencePackData;
+  consensus?: ConsensusInfo;
   blastRadius?: BlastRadiusRisk;
 }
 

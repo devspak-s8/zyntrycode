@@ -161,6 +161,7 @@ export interface BackendSummary {
   budget: { limit_usd?: number | null; spent_usd: number; exceeded: boolean };
   cost: { estimated_usd: number; total_tokens: number };
   timing: { total_seconds: number };
+  consensus?: ConsensusInfo | null;
   events: BackendEvent[];
 }
 
@@ -409,6 +410,7 @@ export function parseSseChunk(
 import type {
   AgentState,
   ChatMessage,
+  ConsensusInfo,
   DiffFile,
   EvidencePackData,
   ExecutionStageItem,
@@ -686,6 +688,19 @@ function narrateRun(summary: BackendSummary): string {
   return parts.join('\n\n');
 }
 
+export function mapConsensus(summary: BackendSummary): ConsensusInfo | undefined {
+  if (!summary.consensus?.ran) return undefined;
+  return {
+    ran: true,
+    rounds: summary.consensus.rounds,
+    verdict: summary.consensus.verdict,
+    statement: summary.consensus.statement,
+    agreement: summary.consensus.agreement,
+    dissent: summary.consensus.dissent,
+    models: summary.consensus.models,
+  };
+}
+
 export function buildAssistantSummaryMessage(summary: BackendSummary): ChatMessage {
   const completed = summary.task.status === 'completed';
   const lines: string[] = [];
@@ -693,6 +708,23 @@ export function buildAssistantSummaryMessage(summary: BackendSummary): ChatMessa
   lines.push(completed ? 'Done — here is what happened.' : 'Here is what happened.');
   lines.push('');
   lines.push(narrateRun(summary));
+
+  // Cross-model consensus verdict, when the panel ran.
+  const consensus = mapConsensus(summary);
+  if (consensus) {
+    lines.push('');
+    lines.push(
+      `Consensus verdict: ${consensus.verdict === 'approved' ? 'this is the fix' : consensus.verdict} ` +
+        `(${consensus.agreement?.approve ?? 0} approve, ${consensus.agreement?.concerns ?? 0} concerns, ` +
+        `${consensus.agreement?.reject ?? 0} reject across ${consensus.models?.length ?? '?'} models).`
+    );
+    if (consensus.statement) lines.push(`Panel statement: ${consensus.statement}`);
+    if (consensus.dissent?.length) {
+      lines.push('');
+      lines.push('Dissent (recorded honestly, never hidden):');
+      for (const d of consensus.dissent.slice(0, 4)) lines.push(`• ${d}`);
+    }
+  }
 
   // Failure explanation goes at the END, telling why.
   if (!completed) {
@@ -721,6 +753,7 @@ export function buildAssistantSummaryMessage(summary: BackendSummary): ChatMessa
     toolActivities: mapToolActivities(summary),
     verificationChecks: mapVerificationChecks(summary),
     evidencePack: mapEvidencePack(summary),
+    consensus,
     routing: mapRouting(summary),
   };
 }
