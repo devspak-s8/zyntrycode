@@ -29,6 +29,18 @@ ROLES = ("correctness", "integration", "security")
 MAX_REVIEW_TOKENS = 1500
 MAX_REPAIR_TOKENS = 2500
 MAX_ARBITER_TOKENS = 800
+
+
+def _max_tokens_for(model: ModelSpec, base: int) -> int:
+    """Reasoning models spend completion tokens on hidden reasoning before the
+    visible answer — gpt-5 with a small cap returns EMPTY content. Give the
+    reasoning families real headroom so their verdicts actually arrive."""
+    mid = model.id.lower()
+    if mid.startswith("gpt-5"):
+        return 8000
+    if mid.startswith(("o1", "o3", "o4")):
+        return max(base, 4000)
+    return base
 MAX_ROUNDS = 2
 # Conservative per-reviewer cost used by the budget guard before running.
 CONSENSUS_COST_CAP_USD = 0.02
@@ -254,10 +266,12 @@ async def _review_once(ctx: Any, model: ModelSpec, role: str, task: dict,
     honestly marked unavailable — never guessed."""
     provider = ctx.provider_for(model.provider)
     system, prompt = build_review_prompt(task, diff_text, evidence_text, role)
+    max_tokens = _max_tokens_for(model, MAX_REVIEW_TOKENS)
+    last_raw = ""
     for attempt in range(2):
         try:
             res = await provider.complete(model.id, prompt, system=system,
-                                          temperature=0.0, max_tokens=MAX_REVIEW_TOKENS)
+                                          temperature=0.0, max_tokens=max_tokens)
         except Exception as exc:  # noqa: BLE001
             return {"model": model.id, "role": role, "verdict": "unavailable",
                     "reasons": [f"reviewer error: {str(exc)[:120]}"],
@@ -267,6 +281,7 @@ async def _review_once(ctx: Any, model: ModelSpec, role: str, task: dict,
             return {"model": model.id, "role": role, "verdict": "unavailable",
                     "reasons": [f"reviewer error: {res.error[:120]}"],
                     "evidence": []}
+        last_raw = res.text or ""
         data = _parse_json(res.text)
         verdict = _norm_verdict(str(data.get("verdict", "")))
         if not verdict:
@@ -284,8 +299,10 @@ async def _review_once(ctx: Any, model: ModelSpec, role: str, task: dict,
         prompt = ("Your previous response was not valid JSON. Return EXACTLY one "
                   "JSON object with keys verdict, reasons, evidence. No prose, "
                   "no markdown fences.\n\n" + prompt)
+    snippet = " ".join((last_raw or "").split())[:160]
     return {"model": model.id, "role": role, "verdict": "unavailable",
-            "reasons": ["reviewer returned an invalid verdict after being re-asked"],
+            "reasons": ["reviewer returned an invalid verdict after being re-asked"
+                        + (f": {snippet}" if snippet else "")],
             "evidence": []}
 
 
@@ -370,7 +387,8 @@ async def run(ctx: Any, *, task: dict, diff_text: str, evidence_text: str,
             last_raw = ""
             for attempt in range(2):
                 res = await provider.complete(arbiter.id, prompt, system=ARBITER_SYSTEM,
-                                              temperature=0.0, max_tokens=MAX_ARBITER_TOKENS)
+                                              temperature=0.0,
+                                              max_tokens=_max_tokens_for(arbiter, MAX_ARBITER_TOKENS))
                 _record(ctx, arbiter, res)
                 if not res.error:
                     last_raw = res.text or ""
