@@ -106,9 +106,10 @@ REPAIR_SYSTEM = (
 
 _JSON_RE = re.compile(r"\{.*\}", re.DOTALL)
 # Read the model's own stated verdict when it wrapped it in prose/fences or was
-# truncated mid-JSON. This extracts the model's words — it never invents them.
-_VERDICT_WORD_RE = re.compile(r'"verdict"\s*:\s*"([a-z_]+)"', re.IGNORECASE)
-_CONCLUSION_WORD_RE = re.compile(r'"conclusion"\s*:\s*"([a-z_]+)"', re.IGNORECASE)
+# truncated mid-JSON. Accepts both quote styles — models often emit Python-style
+# dicts ('verdict': 'approve'). This extracts the model's words — never invents.
+_VERDICT_WORD_RE = re.compile(r"""["']verdict["']\s*:\s*["']([a-z_]+)["']""", re.IGNORECASE)
+_CONCLUSION_WORD_RE = re.compile(r"""["']conclusion["']\s*:\s*["']([a-z_]+)["']""", re.IGNORECASE)
 
 
 def _parse_json(text: str) -> dict:
