@@ -201,9 +201,11 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                     </span>
                     <span className="text-[10px] font-mono text-[#A3AEAA] shrink-0">
                       {msg.consensus.agreement?.approve ?? 0}/
-                      {(msg.consensus.agreement?.approve ?? 0) +
-                        (msg.consensus.agreement?.concerns ?? 0) +
-                        (msg.consensus.agreement?.reject ?? 0) || '?'}{' '}
+                      {msg.consensus.reviewers?.length ||
+                        (msg.consensus.agreement?.approve ?? 0) +
+                          (msg.consensus.agreement?.concerns ?? 0) +
+                          (msg.consensus.agreement?.reject ?? 0) ||
+                        '?'}{' '}
                       agree
                       {msg.consensus.rounds
                         ? ` · ${msg.consensus.rounds} round${msg.consensus.rounds === 1 ? '' : 's'}`
@@ -237,6 +239,8 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                                   ? 'text-[#55E6A5]'
                                   : r.verdict === 'reject'
                                   ? 'text-[#FF9D9D]'
+                                  : r.verdict === 'unavailable'
+                                  ? 'text-[#A3AEAA] line-through decoration-dotted'
                                   : 'text-[#F4C76A]'
                               }`}
                             >

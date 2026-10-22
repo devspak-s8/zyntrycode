@@ -456,9 +456,10 @@ async def run(ctx: Any, *, task: dict, diff_text: str, evidence_text: str,
     reviewers = []
     if last is not None:
         for v in last["reviews"]:
-            if v["verdict"] == "unavailable":
-                continue
-            agreement[v["verdict"]] = agreement.get(v["verdict"], 0) + 1
+            # Unavailable seats stay visible — hiding them would overstate
+            # how much of the panel actually reviewed the work.
+            if v["verdict"] != "unavailable":
+                agreement[v["verdict"]] = agreement.get(v["verdict"], 0) + 1
             reviewers.append({
                 "model": v["model"], "role": v["role"], "verdict": v["verdict"],
                 "reasons": v["reasons"][:2], "evidence": v["evidence"][:2],
@@ -470,13 +471,15 @@ async def run(ctx: Any, *, task: dict, diff_text: str, evidence_text: str,
             if c["class"] == "confirmed_blocking":
                 dissent.append(f"[arbiter] {c['reason']}")
 
-    approved_without_dissent = agreement["reject"] == 0 and not any(
-        c["class"] == "confirmed_blocking" for c in (last or {}).get("classification", []))
     final_conclusion = (last or {}).get("conclusion", "this_is_the_fix")
-    has_blocking = any(
-        c["class"] in ("confirmed_blocking", "unresolved")
+    # Only the arbiter's confirmed blocking findings (or a "repair" conclusion
+    # after the final round) reject the work. "unresolved" objections were
+    # weighed by the arbiter and recorded, not established — they never
+    # silently become rejections, and neither does a seat that never answered.
+    has_confirmed_blocking = any(
+        c["class"] == "confirmed_blocking"
         for c in (last or {}).get("classification", []))
-    if final_conclusion == "repair" or has_blocking:
+    if final_conclusion == "repair" or has_confirmed_blocking:
         final_verdict = "rejected_after_repair"
     elif dissent:
         final_verdict = "approved_with_concerns"

@@ -173,3 +173,45 @@ async def test_malformed_review_is_reasked_not_guessed(runtime, monkeypatch):
     # The malformed reviewer was re-asked and produced a valid verdict.
     assert provider.review_calls == 4  # 3 seats + 1 re-ask
     assert summary["consensus"]["verdict"] == "approved"
+
+
+async def test_unavailable_seat_stays_visible(runtime, monkeypatch):
+    from executor import execute_task
+
+    provider = ScriptedProvider(runtime, malformed_reviews=2)
+    result = await fake_create_and_plan(runtime, prompt="Add a helper to the users service",
+                                        repo=None, constraints={"consensus": True},
+                                        max_attempts_per_stage=2, budget_usd=None)
+    _patch_execution(monkeypatch, runtime, provider)
+
+    summary = await execute_task(runtime, result["task"]["id"])
+
+    assert summary["task"]["status"] == "completed"
+    # The seat that never answered is recorded, not hidden, and the panel
+    # proceeds with the two valid reviews.
+    assert len(summary["consensus"]["reviewers"]) == 3
+    assert summary["consensus"]["reviewers"][0]["verdict"] == "unavailable"
+    assert summary["consensus"]["agreement"]["approve"] == 2
+    assert summary["consensus"]["verdict"] == "approved"
+
+
+async def test_unresolved_classification_does_not_reject(runtime, monkeypatch):
+    from executor import execute_task
+
+    arbiter = ('{"conclusion": "this_is_the_fix", "statement": "Ready.", '
+               '"blocking_reasons": [], '
+               '"classification": [{"reason": "one seat did not answer", '
+               '"class": "unresolved"}], "dismissed": []}')
+    provider = ScriptedProvider(runtime, arbiter=arbiter)
+    result = await fake_create_and_plan(runtime, prompt="Add a helper to the users service",
+                                        repo=None, constraints={"consensus": True},
+                                        max_attempts_per_stage=2, budget_usd=None)
+    _patch_execution(monkeypatch, runtime, provider)
+
+    summary = await execute_task(runtime, result["task"]["id"])
+
+    assert summary["task"]["status"] == "completed"
+    # An unresolved objection is recorded, not established — it must never
+    # silently become a rejection.
+    assert summary["consensus"]["verdict"] == "approved"
+    assert summary["consensus"]["agreement"]["approve"] == 3
