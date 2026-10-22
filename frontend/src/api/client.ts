@@ -698,8 +698,19 @@ export function mapConsensus(summary: BackendSummary): ConsensusInfo | undefined
     agreement: summary.consensus.agreement,
     dissent: summary.consensus.dissent,
     models: summary.consensus.models,
+    reviewers: summary.consensus.reviewers,
+    classification: summary.consensus.classification,
+    dismissed: summary.consensus.dismissed,
+    unverified_checks: summary.consensus.unverified_checks,
   };
 }
+
+const CONSENSUS_VERDICT_TEXT: Record<string, string> = {
+  approved: 'this is the fix',
+  approved_with_concerns: 'approved with concerns recorded',
+  rejected_after_repair: 'blocking findings remain after repair',
+  unavailable: 'consensus unavailable',
+};
 
 export function buildAssistantSummaryMessage(summary: BackendSummary): ChatMessage {
   const completed = summary.task.status === 'completed';
@@ -714,11 +725,16 @@ export function buildAssistantSummaryMessage(summary: BackendSummary): ChatMessa
   if (consensus) {
     lines.push('');
     lines.push(
-      `Consensus verdict: ${consensus.verdict === 'approved' ? 'this is the fix' : consensus.verdict} ` +
+      `Consensus Review: ${CONSENSUS_VERDICT_TEXT[consensus.verdict ?? ''] ?? consensus.verdict} ` +
         `(${consensus.agreement?.approve ?? 0} approve, ${consensus.agreement?.concerns ?? 0} concerns, ` +
-        `${consensus.agreement?.reject ?? 0} reject across ${consensus.models?.length ?? '?'} models).`
+        `${consensus.agreement?.reject ?? 0} reject across ${consensus.reviewers?.length ?? consensus.models?.length ?? '?'} reviewers).`
     );
     if (consensus.statement) lines.push(`Panel statement: ${consensus.statement}`);
+    if (consensus.unverified_checks?.length) {
+      lines.push('');
+      lines.push('Checks that could not run (shown separately — never claimed verified):');
+      for (const c of consensus.unverified_checks.slice(0, 3)) lines.push(`• ${c}`);
+    }
     if (consensus.dissent?.length) {
       lines.push('');
       lines.push('Dissent (recorded honestly, never hidden):');

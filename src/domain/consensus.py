@@ -1,10 +1,18 @@
-"""Cross-model consensus: the final verdict on a finished execution.
+"""Cross-model consensus review: the final verdict on a finished execution.
 
 After all stages complete, a small panel of heterogeneous models reviews the
 final diff + evidence and returns independent verdicts (approve / concerns /
-reject). A cheap arbiter reads the verdicts and either declares "this is the
-fix" or sends the blocking concerns back through ONE repair round. Consensus
-is evidence, not proof: dissent is always recorded, never averaged away.
+reject). Each reviewer has a distinct priority — correctness, integration,
+security — so independence comes from role as well as model identity.
+
+A required arbiter classifies rejections (confirmed_blocking / unresolved /
+non_blocking) and either declares "this is the fix" or sends confirmed
+blocking concerns back through ONE repair round. There is no deterministic
+fallback: malformed verdicts are re-asked once, and without a usable arbiter
+the stage honestly reports "unavailable" instead of guessing.
+
+Consensus is evidence, not proof. Dissent, classifications, and any checks
+that could not run are recorded separately and never averaged away.
 """
 
 import asyncio
@@ -17,40 +25,68 @@ from domain.catalog import ModelSpec, MODELS
 from util import truncate
 
 PANEL_SIZE = 3
-MAX_REVIEW_TOKENS = 800
+ROLES = ("correctness", "integration", "security")
+MAX_REVIEW_TOKENS = 900
 MAX_REPAIR_TOKENS = 2500
-MAX_ARBITER_TOKENS = 500
+MAX_ARBITER_TOKENS = 600
 MAX_ROUNDS = 2
-# Conservative per-panelist cost used by the budget guard before running.
+# Conservative per-reviewer cost used by the budget guard before running.
 CONSENSUS_COST_CAP_USD = 0.02
-# Diff/evidence budgets so prompts stay bounded.
 MAX_DIFF_CHARS = 12000
 MAX_EVIDENCE_CHARS = 3000
 
+ROLE_FOCUS = {
+    "correctness": (
+        "Logic, edge cases, error handling, concurrency, and whether the change "
+        "actually does what the task asks. Cite files/functions."),
+    "integration": (
+        "Cross-module contracts, API signatures, imports, dependency changes, and "
+        "regressions against the rest of the codebase. Cite files/functions."),
+    "security": (
+        "Injection, secrets handling, authentication/authorization, crypto misuse, "
+        "and data exposure. A security finding must be treated as serious. "
+        "Cite files/functions."),
+}
+
 REVIEW_SYSTEM = (
-    "You are an independent reviewer on a code-review panel. You receive the "
-    "final diff of an engineering task and its execution evidence. Return "
-    "EXACTLY a JSON object, no markdown fences:\n"
-    '{"verdict": "approve" | "concerns" | "reject", "reasons": ["..."]}\n'
+    "You are an independent reviewer on a code-review panel. Your review "
+    "priority is {role}. You receive the final diff of an engineering task and "
+    "its execution evidence. Return EXACTLY a JSON object, no markdown fences:\n"
+    '{{"verdict": "approve" | "concerns" | "reject", '
+    '"reasons": ["specific reasons"], '
+    '"evidence": ["file:line or function references supporting each reason"]}}\n'
     "- approve: this is the fix.\n"
     "- concerns: correct, but with non-blocking notes.\n"
     "- reject: there is a blocking problem.\n"
-    "Reasons must cite files, functions, or concrete failure modes. Be specific."
+    "Priority focus: {focus}\n"
+    "Every reason MUST cite concrete files or functions from the diff. A "
+    "generic \"looks good\" demonstrates nothing — be specific."
 )
 
 ARBITER_SYSTEM = (
-    "You arbitrate a code-review panel. Given several reviewers' verdicts on a "
-    "finished engineering task, decide whether the work is ready. Return EXACTLY "
-    "a JSON object, no markdown fences:\n"
-    '{"conclusion": "this_is_the_fix" | "repair", "statement": "one sentence", '
-    '"blocking_reasons": ["..."]}\n'
-    'Use "repair" only when at least one verdict is "reject".'
+    "You arbitrate a code-review panel. Several reviewers (with different "
+    "priorities) reviewed a finished engineering task. Decide whether the work "
+    "is ready. Return EXACTLY a JSON object, no markdown fences:\n"
+    '{{"conclusion": "this_is_the_fix" | "repair", '
+    '"statement": "one sentence", '
+    '"blocking_reasons": ["..."], '
+    '"classification": [{{"reason": "...", '
+    '"class": "confirmed_blocking" | "unresolved" | "non_blocking"}}], '
+    '"dismissed": [{{"reason": "...", "why": "..."}}]}}\n'
+    "Rules:\n"
+    "- A rejection backed by concrete diff evidence is confirmed_blocking.\n"
+    "- A security-priority rejection is blocking UNLESS you can factually refute "
+    "it with references from the diff.\n"
+    "- Majority agreement does NOT dismiss a serious finding; you decide on the "
+    "evidence, not the vote count.\n"
+    '- Use "repair" only when at least one confirmed_blocking reason exists. '
+    "Non-blocking objections never trigger a repair — they are recorded."
 )
 
 REPAIR_SYSTEM = (
     "You are repairing an engineering change after review. Given the original "
-    "task, the current diff, and the reviewers' blocking concerns, produce the "
-    "corrected code. Use fenced code blocks with file paths "
+    "task, the current diff, and the reviewers' confirmed blocking concerns, "
+    "produce the corrected code. Use fenced code blocks with file paths "
     "(```language:path) so the changes can be applied. Address every blocking "
     "concern explicitly."
 )
@@ -67,6 +103,17 @@ def _parse_json(text: str) -> dict:
         return data if isinstance(data, dict) else {}
     except (json.JSONDecodeError, TypeError):
         return {}
+
+
+def _norm_verdict(value: str) -> str:
+    value = (value or "").strip().lower()
+    if value in ("approve", "approved", "yes"):
+        return "approve"
+    if value in ("concerns", "concern", "warn", "warning"):
+        return "concerns"
+    if value in ("reject", "rejected", "no", "fail", "failed"):
+        return "reject"
+    return ""  # invalid — caller re-asks rather than guessing
 
 
 def select_panel(models: list[ModelSpec], available_providers: set[str],
@@ -99,7 +146,6 @@ def select_panel(models: list[ModelSpec], available_providers: set[str],
         if len(panel) >= PANEL_SIZE:
             break
 
-    # Fill remaining seats with any unused models (same provider accepted).
     if len(panel) < PANEL_SIZE:
         for m in sorted(eligible, key=lambda x: x.tier, reverse=True):
             if m.id not in used_ids:
@@ -110,32 +156,6 @@ def select_panel(models: list[ModelSpec], available_providers: set[str],
     return panel
 
 
-def build_review_prompt(task: dict, diff_text: str, evidence_text: str) -> str:
-    return "\n\n".join([
-        f"# Task\n{task.get('prompt', '')}",
-        "# Final diff\n" + (diff_text or "(no diff recorded)"),
-        "# Execution evidence\n" + (evidence_text or "(no evidence)"),
-        "# Instructions\nReturn your verdict as strict JSON.",
-    ])
-
-
-def build_arbiter_prompt(task: dict, verdicts: list[dict]) -> str:
-    lines = [f"# Task\n{task.get('prompt', '')}", "# Panel verdicts"]
-    for v in verdicts:
-        lines.append(f"- [{v['model']}] verdict={v['verdict']} reasons={json.dumps(v['reasons'])}")
-    lines.append("# Instructions\nDecide: this_is_the_fix or repair. Return strict JSON.")
-    return "\n\n".join(lines)
-
-
-def build_repair_prompt(task: dict, diff_text: str, blocking_reasons: list[str]) -> str:
-    return "\n\n".join([
-        f"# Task\n{task.get('prompt', '')}",
-        "# Current diff\n" + (diff_text or "(none)"),
-        "# Blocking review concerns\n" + "\n".join(f"- {r}" for r in blocking_reasons),
-        "# Instructions\nProduce the corrected code with fenced file paths.",
-    ])
-
-
 def pick_arbiter(models: list[ModelSpec], available_providers: set[str]) -> ModelSpec | None:
     eligible = [m for m in models if m.provider in available_providers]
     if not eligible:
@@ -143,15 +163,35 @@ def pick_arbiter(models: list[ModelSpec], available_providers: set[str]) -> Mode
     return min(eligible, key=lambda m: (m.cost_in + m.cost_out, m.tier))
 
 
-def _norm_verdict(value: str) -> str:
-    value = (value or "").strip().lower()
-    if value in ("approve", "approved", "yes"):
-        return "approve"
-    if value in ("concerns", "concern", "warn", "warning"):
-        return "concerns"
-    if value in ("reject", "rejected", "no", "fail", "failed"):
-        return "reject"
-    return "concerns"  # unparsable verdicts are treated as non-blocking notes
+def build_review_prompt(task: dict, diff_text: str, evidence_text: str,
+                        role: str) -> str:
+    system = REVIEW_SYSTEM.format(role=role, focus=ROLE_FOCUS[role])
+    prompt = "\n\n".join([
+        f"# Task\n{task.get('prompt', '')}",
+        "# Final diff\n" + (diff_text or "(no diff recorded)"),
+        "# Execution evidence\n" + (evidence_text or "(no evidence)"),
+        "# Instructions\nReturn your verdict as strict JSON.",
+    ])
+    return system, prompt
+
+
+def build_arbiter_prompt(task: dict, verdicts: list[dict]) -> str:
+    lines = [f"# Task\n{task.get('prompt', '')}", "# Panel verdicts"]
+    for v in verdicts:
+        lines.append(
+            f"- [{v['role']}] {v['model']}: verdict={v['verdict']} "
+            f"reasons={json.dumps(v['reasons'])} evidence={json.dumps(v['evidence'])}")
+    lines.append("# Instructions\nClassify every rejection and decide. Return strict JSON.")
+    return "\n\n".join(lines)
+
+
+def build_repair_prompt(task: dict, diff_text: str, blocking_reasons: list[str]) -> str:
+    return "\n\n".join([
+        f"# Task\n{task.get('prompt', '')}",
+        "# Current diff\n" + (diff_text or "(none)"),
+        "# Confirmed blocking review concerns\n" + "\n".join(f"- {r}" for r in blocking_reasons),
+        "# Instructions\nProduce the corrected code with fenced file paths.",
+    ])
 
 
 def _record(ctx: Any, model: ModelSpec, res: Any) -> None:
@@ -161,89 +201,167 @@ def _record(ctx: Any, model: ModelSpec, res: Any) -> None:
                      tokens_in, tokens_out)
 
 
+async def _review_once(ctx: Any, model: ModelSpec, role: str, task: dict,
+                       diff_text: str, evidence_text: str) -> dict:
+    """One review attempt; malformed JSON is re-asked once, then the seat is
+    honestly marked unavailable — never guessed."""
+    provider = ctx.provider_for(model.provider)
+    system, prompt = build_review_prompt(task, diff_text, evidence_text, role)
+    for attempt in range(2):
+        try:
+            res = await provider.complete(model.id, prompt, system=system,
+                                          temperature=0.0, max_tokens=MAX_REVIEW_TOKENS)
+        except Exception as exc:  # noqa: BLE001
+            return {"model": model.id, "role": role, "verdict": "unavailable",
+                    "reasons": [f"reviewer error: {str(exc)[:120]}"],
+                    "evidence": []}
+        _record(ctx, model, res)
+        if res.error:
+            return {"model": model.id, "role": role, "verdict": "unavailable",
+                    "reasons": [f"reviewer error: {res.error[:120]}"],
+                    "evidence": []}
+        data = _parse_json(res.text)
+        verdict = _norm_verdict(str(data.get("verdict", "")))
+        if verdict:
+            return {
+                "model": model.id, "role": role, "verdict": verdict,
+                "reasons": [str(r)[:300] for r in (data.get("reasons") or [])],
+                "evidence": [str(e)[:200] for e in (data.get("evidence") or [])],
+            }
+        # Malformed response — one explicit re-ask with the schema.
+        prompt = ("Your previous response was not valid JSON. Return EXACTLY one "
+                  "JSON object with keys verdict, reasons, evidence. No prose, "
+                  "no markdown fences.\n\n" + prompt)
+    return {"model": model.id, "role": role, "verdict": "unavailable",
+            "reasons": ["reviewer returned an invalid verdict after being re-asked"],
+            "evidence": []}
+
+
 async def run(ctx: Any, *, task: dict, diff_text: str, evidence_text: str,
               specialist_id: str | None, models: list[ModelSpec],
-              available_providers: set[str], costs: dict) -> dict:
-    """Run the consensus panel for a finished execution.
+              catalog: list[ModelSpec], available_providers: set[str],
+              unverified_checks: list[str]) -> dict:
+    """Run the consensus review panel for a finished execution.
 
-    ``ctx`` must provide ``provider_for(name)``, ``emit(...)`` and
-    ``record_spend(cost, tokens)`` (the executor's run context). ``costs``
-    receives the total consensus spend/tokens.
+    ``ctx`` provides ``provider_for``, ``emit`` and ``record_spend`` (the
+    executor's run context). No deterministic verdict fallback exists: without
+    enough valid reviews or a usable arbiter the stage reports "unavailable".
     """
     verdict_history: list[dict] = []
     result: dict = {
-        "ran": True, "rounds": 0, "verdict": "unknown", "statement": "",
+        "ran": True, "rounds": 0, "verdict": "unavailable", "statement": "",
         "agreement": {"approve": 0, "concerns": 0, "reject": 0},
-        "dissent": [], "models": [], "error": None,
+        "dissent": [], "reviewers": [], "models": [], "classification": [],
+        "unverified_checks": unverified_checks, "error": None,
     }
     current_diff = diff_text
     blocking: list[str] = []
+    final_statement = ""
 
     await ctx.emit("consensus_started",
-                   "Cross-model review panel is checking the finished work",
+                   "Cross-model consensus review is checking the finished work",
                    {"models": [m.id for m in models]})
 
     for round_no in range(1, MAX_ROUNDS + 1):
-        await ctx.emit("consensus_round", f"Consensus round {round_no}",
-                       {"round": round_no}, )
-        verdicts: list[dict] = []
+        await ctx.emit("consensus_round", f"Consensus review round {round_no}",
+                       {"round": round_no})
+
+        # Role priorities: the specialist reviews integration (it knows the intent);
+        # the independent reviewers get correctness and security.
+        priority_order = ["correctness", "security", "integration"]
+        assigned: list[str] = []
+        used_roles: set[str] = set()
         for model in models:
-            try:
-                provider = ctx.provider_for(model.provider)
-                prompt = build_review_prompt(task, current_diff, evidence_text)
-                res = await provider.complete(
-                    model.id, prompt, system=REVIEW_SYSTEM,
-                    temperature=0.0, max_tokens=MAX_REVIEW_TOKENS)
-                if res.error:
-                    verdicts.append({"model": model.id, "verdict": "concerns",
-                                     "reasons": [f"reviewer error: {res.error[:120]}"]})
-                else:
-                    data = _parse_json(res.text)
-                    verdicts.append({
-                        "model": model.id,
-                        "verdict": _norm_verdict(data.get("verdict", "")),
-                        "reasons": [str(r)[:300] for r in (data.get("reasons") or [])],
-                    })
-                    _record(ctx, model, res)
-            except Exception as exc:  # noqa: BLE001
-                verdicts.append({"model": model.id, "verdict": "concerns",
-                                 "reasons": [f"reviewer unavailable: {str(exc)[:120]}"]})
+            if specialist_id and model.id == specialist_id:
+                role = "integration"
+            else:
+                role = next((r for r in priority_order if r not in used_roles),
+                            "correctness")
+            assigned.append(role)
+            used_roles.add(role)
+
+        reviews = []
+        for model, role in zip(models, assigned):
+            review = await _review_once(ctx, model, role, task, current_diff, evidence_text)
+            reviews.append(review)
             await ctx.emit("consensus_verdict",
-                           f"{model.id}: {verdicts[-1]['verdict']}",
-                           verdicts[-1])
+                           f"{role} reviewer {model.id}: {review['verdict']}",
+                           review)
 
-        verdict_history.append({"round": round_no, "verdicts": verdicts})
+        valid = [r for r in reviews if r["verdict"] != "unavailable"]
+        if len(valid) < 2:
+            result["error"] = "consensus unavailable: fewer than two valid reviews"
+            await ctx.emit("verification_limited", result["error"],
+                           {"limitations": [result["error"]]})
+            await ctx.emit("consensus_final", "Consensus unavailable",
+                           result)
+            return result
 
-        # Arbitrate with the cheapest capable model.
-        arbiter = pick_arbiter([m for m in MODELS if m.provider in available_providers],
+        # Arbiter is required — no vote-counting fallback.
+        arbiter = pick_arbiter([m for m in catalog if m.provider in available_providers],
                                available_providers)
+        if arbiter is None:
+            result["error"] = "consensus unavailable: no arbiter model"
+            await ctx.emit("verification_limited", result["error"],
+                           {"limitations": [result["error"]]})
+            await ctx.emit("consensus_final", "Consensus unavailable", result)
+            return result
+
         conclusion, statement, blocking = "this_is_the_fix", "", []
-        if arbiter is not None:
-            try:
-                provider = ctx.provider_for(arbiter.provider)
-                res = await provider.complete(
-                    arbiter.id, build_arbiter_prompt(task, verdicts),
-                    system=ARBITER_SYSTEM, temperature=0.0, max_tokens=MAX_ARBITER_TOKENS)
+        classification: list[dict] = []
+        dismissed: list[dict] = []
+        try:
+            provider = ctx.provider_for(arbiter.provider)
+            prompt = build_arbiter_prompt(task, reviews)
+            data = {}
+            for attempt in range(2):
+                res = await provider.complete(arbiter.id, prompt, system=ARBITER_SYSTEM,
+                                              temperature=0.0, max_tokens=MAX_ARBITER_TOKENS)
+                _record(ctx, arbiter, res)
                 if not res.error:
                     data = _parse_json(res.text)
-                    conclusion = "repair" if data.get("conclusion") == "repair" else "this_is_the_fix"
-                    statement = str(data.get("statement") or "")[:300]
-                    blocking = [str(r)[:300] for r in (data.get("blocking_reasons") or [])]
-                    _record(ctx, arbiter, res)
-            except Exception:  # noqa: BLE001
-                pass
-        else:
-            # No arbiter model: conclude from raw votes.
-            conclusion = "repair" if any(v["verdict"] == "reject" for v in verdicts) else "this_is_the_fix"
+                    if data.get("conclusion"):
+                        break
+                    prompt = ("Your previous response was not valid JSON. Return EXACTLY "
+                              "one JSON object with keys conclusion, statement, "
+                              "blocking_reasons, classification, dismissed. No prose.\n\n"
+                              + prompt)
+            if data.get("conclusion") == "repair":
+                conclusion = "repair"
+            statement = str(data.get("statement") or "")[:300]
+            blocking = [str(r)[:300] for r in (data.get("blocking_reasons") or [])]
+            classification = [{"reason": str(c.get("reason", ""))[:300],
+                               "class": str(c.get("class", "unresolved"))[:40]}
+                              for c in (data.get("classification") or [])
+                              if isinstance(c, dict)]
+            dismissed = [{"reason": str(d.get("reason", ""))[:300],
+                          "why": str(d.get("why", ""))[:200]}
+                         for d in (data.get("dismissed") or [])
+                         if isinstance(d, dict)]
+        except Exception as exc:  # noqa: BLE001
+            result["error"] = f"consensus unavailable: arbiter error: {str(exc)[:120]}"
+            await ctx.emit("verification_limited", result["error"],
+                           {"limitations": [result["error"]]})
+            await ctx.emit("consensus_final", "Consensus unavailable", result)
+            return result
 
+        if not blocking:
+            conclusion = "this_is_the_fix"
+
+        verdict_history.append({"round": round_no, "reviews": reviews,
+                                "conclusion": conclusion, "statement": statement,
+                                "classification": classification,
+                                "dismissed": dismissed})
         await ctx.emit("consensus_arbitrated", f"Arbiter: {conclusion}",
                        {"conclusion": conclusion, "statement": statement,
-                        "blocking_reasons": blocking})
+                        "blocking_reasons": blocking, "classification": classification,
+                        "dismissed": dismissed})
 
         if conclusion == "this_is_the_fix":
+            final_statement = statement
             break
 
-        # One repair round with the blocking concerns.
+        # One repair round with the confirmed blocking concerns.
         repair_text = ""
         if specialist_id and blocking:
             specialist = next((m for m in models if m.id == specialist_id), models[0])
@@ -252,42 +370,68 @@ async def run(ctx: Any, *, task: dict, diff_text: str, evidence_text: str,
                 res = await provider.complete(
                     specialist.id, build_repair_prompt(task, current_diff, blocking),
                     system=REPAIR_SYSTEM, temperature=0.1, max_tokens=MAX_REPAIR_TOKENS)
+                _record(ctx, specialist, res)
                 if not res.error and res.text:
                     repair_text = res.text
-                    _record(ctx, specialist, res)
             except Exception:  # noqa: BLE001
                 pass
-        await ctx.emit("consensus_repaired", "Consensus repair round produced a corrected diff",
+        await ctx.emit("consensus_repaired",
+                       "Consensus repair round produced a corrected diff",
                        {"blocking_reasons": blocking,
                         "repair_applied": bool(repair_text)})
         if repair_text:
             current_diff = repair_text
-        # Else: verdict stands with dissent recorded (honest, never faked).
+        final_statement = statement
 
     # Summarize the last round.
-    last = verdict_history[-1]["verdicts"] if verdict_history else []
+    last = verdict_history[-1] if verdict_history else None
     agreement = {"approve": 0, "concerns": 0, "reject": 0}
     dissent: list[str] = []
-    for v in last:
-        agreement[v["verdict"]] = agreement.get(v["verdict"], 0) + 1
-        if v["verdict"] in ("concerns", "reject"):
-            dissent.extend(f"[{v['model']}] {r}" for r in v["reasons"])
-    rejected_after_repair = any(v["verdict"] == "reject" for v in last)
+    reviewers = []
+    if last is not None:
+        for v in last["reviews"]:
+            if v["verdict"] == "unavailable":
+                continue
+            agreement[v["verdict"]] = agreement.get(v["verdict"], 0) + 1
+            reviewers.append({
+                "model": v["model"], "role": v["role"], "verdict": v["verdict"],
+                "reasons": v["reasons"][:2], "evidence": v["evidence"][:2],
+            })
+            if v["verdict"] in ("concerns", "reject"):
+                dissent.extend(f"[{v['role']}] {r}" for r in v["reasons"][:2])
+        # Classified-but-unfixed rejections remain dissent after a repair round.
+        for c in last.get("classification", []):
+            if c["class"] == "confirmed_blocking":
+                dissent.append(f"[arbiter] {c['reason']}")
 
+    approved_without_dissent = agreement["reject"] == 0 and not any(
+        c["class"] == "confirmed_blocking" for c in (last or {}).get("classification", []))
+    final_conclusion = (last or {}).get("conclusion", "this_is_the_fix")
+    has_blocking = any(
+        c["class"] in ("confirmed_blocking", "unresolved")
+        for c in (last or {}).get("classification", []))
+    if final_conclusion == "repair" or has_blocking:
+        final_verdict = "rejected_after_repair"
+    elif dissent:
+        final_verdict = "approved_with_concerns"
+    else:
+        final_verdict = "approved"
     result.update({
         "rounds": len(verdict_history),
-        "verdict": "rejected_after_repair" if rejected_after_repair
-                   else ("approved_with_concerns" if dissent else "approved"),
-        "statement": statement,
+        "verdict": final_verdict,
+        "statement": final_statement,
         "agreement": agreement,
         "dissent": dissent[:12],
+        "reviewers": reviewers,
         "models": [m.id for m in models],
+        "classification": (last or {}).get("classification", []),
+        "dismissed": (last or {}).get("dismissed", []),
         "history": verdict_history,
     })
     result["diff"] = current_diff if current_diff != diff_text else None
 
     await ctx.emit("consensus_final",
-                   f"Consensus verdict: {result['verdict']} "
-                   f"({agreement['approve']}/{len(last) if last else 0} approve)",
+                   f"Consensus review verdict: {result['verdict']} "
+                   f"({agreement['approve']}/{sum(agreement.values()) or 1} approve)",
                    result)
     return result

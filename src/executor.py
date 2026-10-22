@@ -343,21 +343,36 @@ async def execute_task(runtime: Runtime, task_id: str, *, on_event: EventCallbac
     # disabled per task with constraints.consensus=false. Consensus is
     # evidence, not proof — dissent is recorded, never averaged away.
     stage_statuses = await store.get_stage_statuses(db, plan["id"])
+    # Re-read stages: assigned models and statuses were updated during the run.
+    stages_final = [store.stage_dict(s) for s in await store.get_stages(db, plan["id"])]
     stages_ok = (
         not ctx.budget_exceeded
         and not any(st in (StageStatus.FAILED.value, StageStatus.BLOCKED.value,
                            StageStatus.PENDING.value)
                     for st in stage_statuses.values())
     )
+    consensus_setting = constraints.get("consensus")
+    task_risk = task.get("risk_level")
     consensus_enabled = (
         policy_mode in ("agent", "plan")
         and policy_routing != "fast"
-        and constraints.get("consensus") is not False
+        and (consensus_setting is True
+             or (consensus_setting is not False
+                 and task_risk in (RiskLevel.HIGH.value, RiskLevel.CRITICAL.value)))
     )
     if stages_ok and consensus_enabled:
         try:
             from domain import consensus as consensus_domain
             from domain.catalog import MODELS
+
+            # Checks that could not run stay visible next to the verdict —
+            # consensus evaluates code + evidence, it never overrides them.
+            run_events = [store.event_dict(e)
+                          for e in await store.get_events(db, execution_id, limit=2000)]
+            unverified_checks: list[str] = []
+            for e in run_events:
+                if e["type"] == "verification_limited":
+                    unverified_checks.extend(e.get("data", {}).get("limitations", []))
 
             artifacts_rows = await store.get_artifacts(db, execution_id)
             diff_parts = [f"### {a['path']}\n{truncate(a.get('content') or '', 2000)}"
@@ -371,7 +386,7 @@ async def execute_task(runtime: Runtime, task_id: str, *, on_event: EventCallbac
             diff_text = "\n\n".join(diff_parts)[:consensus_domain.MAX_DIFF_CHARS]
 
             evidence_lines = []
-            for s in stages:
+            for s in stages_final:
                 if s["status"] != StageStatus.SUCCEEDED.value:
                     continue
                 reports = await store.get_verification_reports(db, s["id"])
@@ -385,7 +400,7 @@ async def execute_task(runtime: Runtime, task_id: str, *, on_event: EventCallbac
             evidence_text = "\n".join(evidence_lines)[:consensus_domain.MAX_EVIDENCE_CHARS]
 
             specialist_id = None
-            for s in reversed(stages):
+            for s in reversed(stages_final):
                 if s["kind"].startswith("implement") and s.get("assigned_model"):
                     specialist_id = s["assigned_model"]
                     break
@@ -403,8 +418,8 @@ async def execute_task(runtime: Runtime, task_id: str, *, on_event: EventCallbac
             else:
                 consensus_result = await consensus_domain.run(
                     ctx, task=task, diff_text=diff_text, evidence_text=evidence_text,
-                    specialist_id=specialist_id, models=panel,
-                    available_providers=avail, costs={})
+                    specialist_id=specialist_id, models=panel, catalog=MODELS,
+                    available_providers=avail, unverified_checks=unverified_checks)
                 repair_diff = consensus_result.get("diff")
                 if repair_diff:
                     repair_arts = artifacts_domain.parse_artifacts(repair_diff)

@@ -177,10 +177,10 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                 {msg.content}
               </div>
 
-              {/* Cross-model consensus card */}
+              {/* Cross-model Consensus Review card */}
               {msg.consensus?.ran && (
                 <div
-                  className={`flex items-start gap-2.5 p-3 rounded-xl border ${
+                  className={`rounded-xl border p-3.5 space-y-2.5 ${
                     msg.consensus.verdict === 'approved'
                       ? 'bg-[#0E2A1C]/60 border-[#55E6A5]/30'
                       : msg.consensus.verdict === 'rejected_after_repair'
@@ -188,37 +188,91 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                       : 'bg-[#16233A]/60 border-[#82B9FF]/30'
                   }`}
                 >
-                  <span
-                    className={`mt-0.5 w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold ${
-                      msg.consensus.verdict === 'approved'
-                        ? 'bg-[#55E6A5]/20 text-[#55E6A5]'
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold tracking-wide text-[#F2F6F4]">
+                      Consensus Review ·{' '}
+                      {msg.consensus.verdict === 'approved'
+                        ? 'this is the fix'
+                        : msg.consensus.verdict === 'approved_with_concerns'
+                        ? 'approved with concerns'
                         : msg.consensus.verdict === 'rejected_after_repair'
-                        ? 'bg-[#FF7D7D]/20 text-[#FF9D9D]'
-                        : 'bg-[#82B9FF]/20 text-[#82B9FF]'
-                    }`}
-                  >
-                    ✓
-                  </span>
-                  <div className="text-[11px] leading-relaxed min-w-0">
-                    <div className="font-semibold text-[#F2F6F4]">
-                      Cross-model consensus ·{' '}
-                      {msg.consensus.verdict === 'approved' ? 'this is the fix' : msg.consensus.verdict}
-                    </div>
-                    <div className="text-[#A3AEAA] mt-0.5">
-                      {msg.consensus.agreement?.approve ?? 0} approve ·{' '}
-                      {msg.consensus.agreement?.concerns ?? 0} concerns ·{' '}
-                      {msg.consensus.agreement?.reject ?? 0} reject across{' '}
-                      {msg.consensus.models?.length ?? '?'} models
-                      {msg.consensus.rounds ? ` · ${msg.consensus.rounds} round${msg.consensus.rounds === 1 ? '' : 's'}` : ''}
-                    </div>
-                    {msg.consensus.dissent && msg.consensus.dissent.length > 0 && (
-                      <div className="text-[#F4C76A] mt-1 space-y-0.5">
-                        {msg.consensus.dissent.slice(0, 3).map((d, i) => (
-                          <div key={i}>• {d}</div>
-                        ))}
-                      </div>
-                    )}
+                        ? 'blocking findings remain'
+                        : msg.consensus.verdict}
+                    </span>
+                    <span className="text-[10px] font-mono text-[#A3AEAA] shrink-0">
+                      {msg.consensus.agreement?.approve ?? 0}/
+                      {(msg.consensus.agreement?.approve ?? 0) +
+                        (msg.consensus.agreement?.concerns ?? 0) +
+                        (msg.consensus.agreement?.reject ?? 0) || '?'}{' '}
+                      agree
+                      {msg.consensus.rounds
+                        ? ` · ${msg.consensus.rounds} round${msg.consensus.rounds === 1 ? '' : 's'}`
+                        : ''}
+                    </span>
                   </div>
+
+                  {/* Per-reviewer rows with role priorities */}
+                  {msg.consensus.reviewers?.length ? (
+                    <div className="space-y-1">
+                      {msg.consensus.reviewers.map((r, i) => (
+                        <div
+                          key={`${r.model}-${i}`}
+                          className="flex items-start gap-2 text-[11px]"
+                        >
+                          <span
+                            className={`mt-0.5 shrink-0 px-1.5 py-0.5 rounded font-mono text-[9px] uppercase tracking-wider ${
+                              r.role === 'security'
+                                ? 'bg-[#2A161A]/80 text-[#FF9D9D]'
+                                : r.role === 'integration'
+                                ? 'bg-[#16233A]/80 text-[#82B9FF]'
+                                : 'bg-white/8 text-[#C9D4D0]'
+                            }`}
+                          >
+                            {r.role}
+                          </span>
+                          <span className="min-w-0">
+                            <span
+                              className={`font-semibold ${
+                                r.verdict === 'approve'
+                                  ? 'text-[#55E6A5]'
+                                  : r.verdict === 'reject'
+                                  ? 'text-[#FF9D9D]'
+                                  : 'text-[#F4C76A]'
+                              }`}
+                            >
+                              {r.verdict}
+                            </span>
+                            <span className="text-[#A3AEAA]"> · {r.model}</span>
+                            {r.reasons?.[0] && (
+                              <span className="block text-[#A3AEAA] mt-0.5">
+                                {r.reasons[0]}
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-[11px] text-[#A3AEAA]">
+                      {msg.consensus.statement || 'No reviewer detail recorded.'}
+                    </div>
+                  )}
+
+                  {/* Verification status — shown separately, never merged with the verdict */}
+                  {msg.consensus.unverified_checks?.length ? (
+                    <div className="pt-1 border-t border-white/8 text-[10px] font-mono text-[#6F7B77]">
+                      <span className="text-[#F4C76A]">Unverified:</span>{' '}
+                      {msg.consensus.unverified_checks.slice(0, 3).join(' · ')}
+                    </div>
+                  ) : null}
+
+                  {msg.consensus.dissent?.length ? (
+                    <div className="pt-1 border-t border-white/8 text-[10px] font-mono text-[#F4C76A] space-y-0.5">
+                      {msg.consensus.dissent.slice(0, 3).map((d, i) => (
+                        <div key={i}>• {d}</div>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               )}
 

@@ -151,6 +151,16 @@ export interface ConsensusInfo {
   agreement?: { approve: number; concerns: number; reject: number };
   dissent?: string[];
   models?: string[];
+  reviewers?: {
+    model: string;
+    role: string;
+    verdict: string;
+    reasons?: string[];
+    evidence?: string[];
+  }[];
+  classification?: { reason: string; class: string }[];
+  dismissed?: { reason: string; why: string }[];
+  unverified_checks?: string[];
 }
 
 export interface ConstitutionRule {
