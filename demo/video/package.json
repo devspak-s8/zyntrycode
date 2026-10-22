@@ -1,0 +1,19 @@
+{
+  "name": "zyntry-demo-video",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "render": "remotion render src/index.ts ZyntryDemo out/zyntry-consensus-demo.mp4 --codec h264",
+    "still": "remotion still src/index.ts ZyntryDemo out/poster.png --frame 372"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.0"
+  },
+  "devDependencies": {
+    "@remotion/cli": "^4.0.0",
+    "@types/react": "^18.3.0",
+    "typescript": "^5.5.0"
+  }
+}
