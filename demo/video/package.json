@@ -4,7 +4,9 @@
   "version": "1.0.0",
   "scripts": {
     "render": "remotion render src/index.ts ZyntryDemo out/zyntry-consensus-demo.mp4 --codec h264",
-    "still": "remotion still src/index.ts ZyntryDemo out/poster.png --frame 372"
+    "render:light": "remotion render src/index.ts ZyntryDemoLight out/zyntry-consensus-demo-light.mp4 --codec h264",
+    "still": "remotion still src/index.ts ZyntryDemo out/poster.png --frame 372",
+    "still:light": "remotion still src/index.ts ZyntryDemoLight out/poster-light.png --frame 940"
   },
   "dependencies": {
     "react": "^18.3.1",
