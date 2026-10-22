@@ -51,10 +51,12 @@ MODELS: list[ModelSpec] = [
               frozenset({Capability.CODE, Capability.REASON, Capability.REVIEW, Capability.SECURITY, Capability.PLAN}), "slow"),
 
     # ---- Cloudflare Workers AI (edge inference, no API key) ----
+    # NOTE: only models that exist in the Workers AI catalog are listed.
+    # deepseek-v3 was removed here because the binding returns
+    # "No such model" for it — planning is LLM-only and must never fail
+    # on a stale free-model entry.
     ModelSpec("@cf/meta/llama-3.3-70b-instruct-fp8-fast", "workers_ai", "Llama 3.3 70B (fp8)", 2, 128_000, 0.0, 0.0,
               frozenset({Capability.CODE, Capability.REASON}), "fast"),
-    ModelSpec("@cf/deepseek-ai/deepseek-v3-0324", "workers_ai", "DeepSeek V3", 3, 64_000, 0.0, 0.0,
-              frozenset({Capability.CODE, Capability.REASON, Capability.PLAN}), "balanced"),
     ModelSpec("@cf/meta/llama-4-scout-17b-16e-instruct", "workers_ai", "Llama 4 Scout 17B", 2, 10_000_000, 0.0, 0.0,
               frozenset({Capability.CODE, Capability.REASON, Capability.LONG_CONTEXT}), "fast"),
 ]
